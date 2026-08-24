@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+        
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            margin: 0;
+            padding: 0;
+            width: 297mm;
+            height: 210mm;
+            background-color: #111827; /* bg-gray-900 */
+            color: white;
+            font-family: 'Roboto Mono', monospace; /* font-mono */
+            position: relative;
+            overflow: hidden;
+            
+            /* Fallback variables */
+            --primary-color: #000000;
+            --secondary-color: #666666;
+        }
+
+        .container {
+            /* h-full w-full bg-gray-900 text-white relative overflow-hidden font-mono shadow-lg */
+            width: 100%;
+            height: 100%;
+            position: relative;
+            color: #fff; /* Explicit color override from style */
+            background-color: var(--background-color, #111827);
+            
+            /* background_style moved inline */
+        }
+        
+        .dots-overlay {
+            /* absolute top-0 left-0 w-full h-full opacity-20 */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.2;
+            /* backgroundImage provided inline in JSX: radial-gradient(${primary_color} 1px, transparent 1px) */
+            background-image: radial-gradient(var(--primary-color) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .content-wrapper {
+            /* h-full flex flex-col justify-center p-12 relative z-10 border-l-8 */
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 3rem; /* p-12 */
+            position: relative;
+            z-index: 10;
+            border-left: 8px solid var(--primary-color);
+        }
+
+        .header {
+            /* flex items-center gap-4 mb-8 opacity-70 */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            opacity: 0.7;
+        }
+
+        .logo {
+            /* h-8 invert */
+            height: 2rem;
+            filter: invert(1);
+            object-fit: contain;
+        }
+
+        .system-label {
+            /* uppercase text-xs tracking-widest */
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+        }
+
+        .title {
+            /* text-5xl font-bold mb-2 */
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+
+        .hash-line {
+            /* text-sm text-gray-400 mb-8 font-mono */
+            font-size: 0.875rem;
+            color: #9ca3af;
+            font-family: 'Roboto Mono', monospace;
+            margin-bottom: 2rem;
+            margin-top: 0;
+        }
+
+        .granted-to {
+            /* text-gray-300 mb-2 */
+            color: #d1d5db;
+            margin-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        .recipient-box {
+            /* text-4xl font-bold bg-white text-black inline-block px-4 py-2 mb-8 transform -skew-x-12 */
+            font-size: 2.25rem;
+            font-weight: 700;
+            background-color: white;
+            color: var(--color, black);
+            font-family: var(--font-family, inherit);
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            margin-bottom: 2rem;
+            transform: skewX(-12deg);
+            
+            /* text_style applied inline */
+        }
+
+        .recipient-text-unskew {
+            /* transform skew-x-12 inline-block */
+            transform: skewX(12deg);
+            display: inline-block;
+        }
+
+        .body-text {
+            /* text-gray-300 max-w-lg mb-8 border-l border-gray-700 pl-4 */
+            color: #d1d5db;
+            max-width: 32rem;
+            margin-bottom: 2rem;
+            border-left: 1px solid #374151; /* gray-700 */
+            padding-left: 1rem;
+            margin-top: 0;
+        }
+        
+        .body-text span {
+            color: var(--primary-color);
+        }
+        
+        .footer {
+            /* flex items-center justify-between mt-auto */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: auto;
+        }
+        
+        .footer-left {
+            /* flex items-center gap-2 */
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .ai-badge {
+            /* w-8 h-8 rounded-full border border-gray-600 flex items-center justify-center text-[10px] */
+             width: 2rem;
+             height: 2rem;
+             border-radius: 50%;
+             border: 1px solid #4b5563; /* gray-600 */
+             display: flex;
+             align-items: center;
+             justify-content: center;
+             font-size: 10px;
+        }
+
+        .footer-text {
+            /* text-xs text-gray-500 */
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        
+        .footer-text p { margin: 0; }
+        .footer-text p:first-child { color: white; }
+        
+        .score-val {
+             /* text-3xl font-bold */
+             font-size: 1.875rem;
+             font-weight: 700;
+             color: var(--secondary-color);
+             margin: 0;
+        }
+        
+        .score-label {
+             /* text-xs text-gray-500 */
+             font-size: 0.75rem;
+             color: #6b7280;
+             margin: 0;
+        }</style>
+</head>
+<body>
+    <div class="container" style="--primary-color: {{ primary_color }}; --secondary-color: {{ secondary_color }}; --background-color: {{ background_style_map.get('background-color', 'white') }}; {% if background_base64 %} background-image: url('data:image/png; base64,{{ background_base64 }}'); background-size: cover; background-position: center; {% endif %}">
+        <div class="dots-overlay"></div>
+        
+        <div class="content-wrapper">
+             <div class="header">
+                 {% if logo_base64 %}
+                     <img src="data:image/png;base64,{{ logo_base64 }}" class="logo">
+                 {% endif %}
+                 <span class="system-label">{{ custom_text.get('system_label', 'System Validation') }}</span>
+             </div>
+             
+             <h1 class="title">{{ custom_text.get('title', 'CERTIFICATE') }}</h1>
+             <div class="hash-line">HASH: {{ verification_id[:16] if verification_id else '8f2a9c...1b4' }} | BLOCK: #9921</div>
+             
+             <p class="granted-to">{{ custom_text.get('presented_to', 'Is hereby granted to:') }}</p>
+             
+             <div class="recipient-box" style="--color: {{ text_style_map.get('color', 'black') }}; --font-family: {{ text_style_map.get('font-family', 'inherit') }}; --font-size: {{ text_style_map.get('font-size', 'inherit') }}; --font-weight: {{ text_style_map.get('font-weight', 'inherit') }};">
+                 <span class="recipient-text-unskew">{{ recipient_name }}</span>
+             </div>
+             
+             <p class="body-text">
+            {{ custom_text.get('body', 'has successfully completed ') }} <span>{{ course_title }}</span>.
+            Skills verified algorithmically.
+        </p>
+
+        {% if extra_fields %}
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem; padding-left: 1rem; max-width: 32rem;">
+             {% for key, value in extra_fields.items() %}
+                {% if key != 'amount' %}
+                <div style="text-align: left;">
+                    <span style="font-size: 0.75rem; text-transform: uppercase; font-family: 'Roboto Mono', monospace; color: #6b7280; display: block; margin-bottom: 0.25rem;">&gt;&gt; {{ key }}</span>
+                    <span style="font-size: 0.875rem; font-weight: 700; color: #e5e7eb;">{{ value }}</span>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+             
+             <div class="footer">
+                 <div class="footer-left">
+                     <div class="ai-badge">AI</div>
+                     <div class="footer-text">
+                         <p style="color: white;">{{ custom_text.get('verified_label', 'Verified') }}</p>
+                         <p>{{ custom_text.get('signature_label', 'Automated Sign') }}</p>
+                     </div>
+                 </div>
+                 
+                 <div style="text-align: right;">
+                     <p class="score-val">100%</p>
+                     <p class="score-label">{{ custom_text.get('score_label', 'Score') }}</p>
+                 </div>
+             </div>
+        </div>
+    </div>
+</body>
+</html>
+
+

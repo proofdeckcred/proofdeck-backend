@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap');
+        
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            margin: 0;
+            padding: 0;
+            width: 297mm;
+            height: 210mm;
+            background-color: #fdfbf7; /* bg-[#fdfbf7] */
+            font-family: 'Playfair Display', serif;
+        }
+
+        .container {
+            /* h-full w-full bg-[#fdfbf7] relative p-12 flex flex-col items-center justify-between text-center shadow-lg */
+            width: 100%;
+            height: 100%;
+            padding: 3rem; /* p-12 */
+            position: relative;
+            background-color: var(--background-color, #fdfbf7);
+            border: var(--border, none); /* Apply border if provided by style map */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            text-align: center;
+            
+            /* background_style moved inline */
+        }
+        
+        .border-outer {
+            /* absolute inset-4 border-[3px] border-black pointer-events-none */
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            right: 1rem;
+            bottom: 1rem;
+            border: 3px solid black;
+            pointer-events: none;
+        }
+
+        .border-inner {
+            /* absolute inset-6 border border-black pointer-events-none */
+            position: absolute;
+            top: 1.5rem;
+            left: 1.5rem;
+            right: 1.5rem;
+            bottom: 1.5rem;
+            border: 1px solid black;
+            pointer-events: none;
+        }
+
+        .header {
+            /* mt-4 */
+            margin-top: 1rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .logo {
+            /* h-20 mx-auto mb-4 */
+            height: 5rem;
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 1rem;
+            object-fit: contain;
+        }
+
+        .diploma-title {
+            /* text-4xl font-black uppercase text-gray-900 tracking-wider font-serif */
+            font-size: 2.25rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: #111827;
+            letter-spacing: 0.05em;
+            margin: 0;
+        }
+
+        .diploma-subtitle {
+            /* text-sm text-gray-500 uppercase tracking-[0.5em] mt-2 */
+            font-size: 0.875rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5em;
+            margin-top: 0.5rem;
+            margin-bottom: 0;
+        }
+
+        .main-body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            /* my-4 w-full */
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+            width: 100%;
+            position: relative;
+            z-index: 10;
+        }
+
+        .certify-text {
+            /* italic font-serif text-gray-600 text-lg mb-4 */
+            font-style: italic;
+            color: #4b5563;
+            font-size: 1.125rem;
+            margin-bottom: 1rem;
+            margin-top: 0;
+        }
+
+        .recipient {
+            /* text-4xl font-serif font-bold text-black border-b border-black inline-block px-12 pb-2 mb-6 */
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--color, black);
+            font-family: var(--font-family, inherit);
+            font-size: var(--font-size, 2.25rem);
+            font-weight: var(--font-weight, 700);
+            border-bottom: 1px solid black;
+            display: inline-block;
+            padding-left: 3rem;
+            padding-right: 3rem;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+            margin-top: 0;
+            /* text_style applied inline */
+        }
+
+        .completion-text {
+            /* font-serif text-gray-800 text-xl */
+            color: #1f2937;
+            font-size: 1.25rem;
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .course-title {
+            /* text-2xl mt-2 block */
+            font-size: 1.5rem;
+            margin-top: 0.5rem;
+            display: block;
+            font-weight: 700; /* strong default */
+        }
+
+        .footer {
+            /* w-full flex justify-around items-end mb-4 */
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            margin-bottom: 1rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .footer-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .line {
+            /* h-px w-40 bg-black mb-2 */
+            height: 1px;
+            width: 10rem;
+            background-color: black;
+            margin-bottom: 0.5rem;
+        }
+
+        .label {
+            /* font-serif text-xs uppercase font-bold */
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            margin: 0;
+        }
+        
+        .seal-container {
+             /* w-24 h-24 relative */
+             width: 6rem;
+             height: 6rem;
+             position: relative;
+        }
+        
+        .seal-bg {
+             /* absolute inset-0 bg-yellow-600 rounded-full opacity-20 */
+             position: absolute;
+             top: 0; left: 0; right: 0; bottom: 0;
+             background-color: #ca8a04; /* yellow-600 */
+             border-radius: 50%;
+             opacity: 0.2;
+        }
+
+        .seal-border {
+            /* w-full h-full border-4 border-yellow-600 rounded-full flex items-center justify-center text-yellow-800 text-xs font-bold text-center p-2 uppercase */
+            width: 100%;
+            height: 100%;
+            border: 4px solid #ca8a04;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #854d0e; /* yellow-800 */
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-align: center;
+            padding: 0.5rem;
+            text-transform: uppercase;
+        }</style>
+</head>
+<body>
+    <div class="container" style="{% if background_base64 %} background-image: url('data:image/png; base64,{{ background_base64 }}'); background-size: cover; background-position: center; {% else %} background-image: {{ background_style_map.get('background-image', 'none') }}; {% endif %} --background-color: {{ background_style_map.get('background-color', 'white') }}; --border: {{ background_style_map.get('border', 'none') }};">
+        <div class="border-outer"></div>
+        <div class="border-inner"></div>
+        
+        <div class="header">
+             {% if logo_base64 %}
+                <img src="data:image/png;base64,{{ logo_base64 }}" class="logo">
+             {% endif %}
+             <h1 class="diploma-title">{{ custom_text.get('title', 'Diploma') }}</h1>
+             <p class="diploma-subtitle">{{ custom_text.get('subtitle', 'Of Graduation') }}</p>
+        </div>
+
+        <div class="main-body">
+             <p class="certify-text">{{ custom_text.get('presented_to', 'This is to certify that') }}</p>
+             <h2 class="recipient" style="--color: {{ text_style_map.get('color', 'inherit') }}; --font-family: {{ text_style_map.get('font-family', 'inherit') }}; --font-size: {{ text_style_map.get('font-size', 'inherit') }}; --font-weight: {{ text_style_map.get('font-weight', 'inherit') }};">{{ recipient_name }}</h2>
+             <p class="completion-text">
+                 {{ custom_text.get('body', 'Has completed the prescribed course of study in') }}<br>
+                 <strong class="course-title">{{ certificateBody }} {{ course_title }}</strong>
+             </p>
+
+        {% if extra_fields %}
+        <div style="margin-top: 1.5rem; border-top: 1px solid #d1d5db; padding-top: 1rem; width: 100%; max-width: 32rem; margin-left: auto; margin-right: auto; text-align: left;">
+             {% for key, value in extra_fields.items() %}
+                {% if key != 'amount' %}
+                <div style="display: flex; justify-content: space-between; font-family: serif; font-size: 0.875rem;">
+                    <span style="font-weight: 700; color: #6b7280; text-transform: uppercase;">{{ key }}</span>
+                    <span style="font-weight: 700; color: #111827;">{{ value }}</span>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+        </div>
+
+        <div class="footer">
+             <div class="footer-col">
+                 <div class="line"></div>
+                 <p class="label">{{ custom_text.get('sig1_title', 'Principal') }}</p>
+             </div>
+             
+             <div class="footer-col">
+                 <div class="seal-container">
+                     <div class="seal-bg"></div>
+                     <div class="seal-border">
+                         {{ custom_text.get('seal_text', 'Official Seal') }}
+                     </div>
+                 </div>
+             </div>
+             
+             <div class="footer-col">
+                 <div class="line"></div>
+                 <p class="label">{{ custom_text.get('sig2_title', 'Secretary') }}</p>
+             </div>
+        </div>
+    </div>
+</body>
+</html>
+
+

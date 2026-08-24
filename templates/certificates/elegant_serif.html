@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Great+Vibes&display=swap");
+
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        margin: 0;
+        padding: 0;
+        width: 210mm;
+        height: 297mm;
+        background-color: #fafafa;
+        font-family: "Playfair Display", serif;
+        color: #1f2937; /* text-gray-800 approx */
+
+        /* Fallback variables */
+        --primary-color: #000000;
+        --secondary-color: #666666;
+      }
+
+      .container {
+        /* h-full w-full bg-[#FAFAFA] relative p-12 flex flex-col items-center text-center border-[16px] border-double shadow-lg */
+        width: 100%;
+        height: 100%;
+        padding: 3rem; /* p-12 */
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        border: 16px double var(--primary-color);
+        background-color: var(--background-color, #fafafa);
+
+        /* background_style moved inline */
+      }
+
+      .logo {
+        /* h-24 object-contain mb-8 filter grayscale opacity-80 */
+        height: 6rem;
+        object-fit: contain;
+        margin-bottom: 2rem;
+        filter: grayscale(100%);
+        opacity: 0.8;
+      }
+
+      .title {
+        /* text-3xl font-serif italic mb-2 text-gray-800 */
+        font-size: 1.875rem;
+        font-style: italic;
+        margin-bottom: 0.5rem;
+        margin-top: 0;
+        color: #1f2937;
+      }
+
+      .divider-small {
+        /* w-16 h-px bg-gray-300 mb-12 */
+        width: 4rem;
+        height: 1px;
+        background-color: #d1d5db;
+        margin-bottom: 3rem;
+      }
+
+      .presented-to {
+        /* text-gray-500 font-serif italic text-lg mb-4 */
+        color: #6b7280;
+        font-style: italic;
+        font-size: 1.125rem;
+        margin-bottom: 1rem;
+        margin-top: 0;
+      }
+
+      .recipient {
+        /* text-4xl font-serif font-bold text-gray-900 mb-8 border-b pb-4 px-8 inline-block */
+        font-size: 2.25rem;
+        font-weight: 700;
+        color: var(--color, #111827); /* text-gray-900 */
+        font-family: var(--font-family, inherit);
+        font-size: var(--font-size, 2.25rem);
+        font-weight: var(--font-weight, 700);
+        margin-bottom: 2rem;
+        margin-top: 0;
+        border-bottom: 1px solid var(--secondary-color);
+        padding-bottom: 1rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
+        display: inline-block;
+        /* text_style applied inline */
+      }
+
+      .body-text {
+        /* text-gray-600 font-serif leading-relaxed max-w-sm mb-12 */
+        color: #4b5563;
+        line-height: 1.625;
+        max-width: 24rem;
+        margin-bottom: 3rem;
+        margin-top: 0;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .course-title {
+        /* text-2xl font-bold uppercase tracking-widest block mt-2 */
+        font-size: 1.5rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        display: block;
+        margin-top: 0.5rem;
+        color: var(--primary-color);
+      }
+
+      .footer {
+        /* mt-auto flex w-full justify-between items-end px-4 */
+        margin-top: auto;
+        display: flex;
+        width: 100%;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+
+      .footer-left {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .seal-circle {
+        /* w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center p-2 mb-2 */
+        width: 5rem;
+        height: 5rem;
+        border-radius: 50%;
+        border: 2px dashed var(--secondary-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .seal-inner {
+        /* w-full h-full rounded-full bg-gray-100 flex items-center justify-center text-[8px] text-center */
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background-color: #f3f4f6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 8px; /* text-[8px] */
+        text-align: center;
+        line-height: 1.2;
+      }
+
+      .footer-right {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .signature {
+        /* w-40 border-b border-gray-800 mb-2 text-center text-lg font-signature */
+        width: 10rem;
+        border-bottom: 1px solid #1f2937;
+        margin-bottom: 0.5rem;
+        text-align: center;
+        font-size: 1.125rem;
+        font-family: "Great Vibes", cursive, serif;
+      }
+
+      .signature-label {
+        /* text-xs font-serif italic */
+        font-size: 0.75rem;
+        font-style: italic;
+        margin: 0;
+        color: #4b5563; /* Use default or gray */
+      }</style>
+  </head>
+  <body>
+    <div
+      class="container"
+    >
+      {% if logo_base64 %}
+      <img src="data:image/png;base64,{{ logo_base64 }}" class="logo" />
+      {% endif %}
+
+      <h1 class="title">
+        {{ custom_text.get('title', 'Certificate of Achievement') }}
+      </h1>
+      <div class="divider-small"></div>
+
+      <p class="presented-to">
+        {{ custom_text.get('presented_to', 'Presented to') }}
+      </p>
+
+      <h2
+        class="recipient"
+        style="--color: {{ text_style_map.get('color', 'inherit') }}; --font-family: {{ text_style_map.get('font-family', 'inherit') }}; --font-size: {{ text_style_map.get('font-size', 'inherit') }}; --font-weight: {{ text_style_map.get('font-weight', 'inherit') }};"
+      >
+        {{ recipient_name }}
+      </h2>
+
+      <p class="body-text">
+        for the successful completion of the curriculum and requirements for:
+        <br /><br />
+        <span class="course-title">{{ course_title }}</span>
+      </p>
+
+      {% if extra_fields %}
+      <div
+        style="
+          margin-bottom: 3rem;
+          max-width: 24rem;
+          margin-left: auto;
+          margin-right: auto;
+        "
+      >
+        {% for key, value in extra_fields.items() %} {% if key != 'amount' %}
+        <div style="text-align: center; margin-bottom: 1rem">
+          <span
+            style="
+              font-size: 0.75rem;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+              color: #9ca3af;
+              display: block;
+              margin-bottom: 0.25rem;
+            "
+            >{{ key }}</span
+          >
+          <span
+            style="
+              font-size: 1.125rem;
+              color: #1f2937;
+              font-style: italic;
+              border-bottom: 1px solid #e5e7eb;
+              padding-bottom: 0.25rem;
+              display: inline-block;
+              padding-left: 1rem;
+              padding-right: 1rem;
+            "
+            >{{ value }}</span
+          >
+        </div>
+        {% endif %} {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="footer">
+        <div class="footer-left">
+          <div class="seal-circle">
+            <div class="seal-inner">
+              {{ custom_text.get('seal_text', 'OFFICIAL SEAL') }}
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-right">
+          <div class="signature">
+            {{ signature if signature else 'Director' }}
+          </div>
+          <p class="signature-label">
+            {{ custom_text.get('signature_label', 'Director Signature') }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+
+

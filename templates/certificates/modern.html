@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700;900&family=Playfair+Display:wght@400;700&family=Merriweather:wght@300;400;700&family=Open+Sans:wght@300;400;600;700&family=Montserrat:wght@300;400;600;700&family=Lato:wght@300;400;700&display=swap');
+        
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 297mm;
+            height: 210mm;
+            background-color: white;
+            font-family: 'Roboto', sans-serif;
+            color: black;
+            
+            /* Fallback variables */
+            --primary-color: #000000;
+            --secondary-color: #666666;
+            --body-font-color: #333333;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            border: 4px solid var(--primary-color);
+            background-color: var(--background-color, white);
+            background-size: cover;
+            background-position: center;
+            background-position: center;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            flex: 0 0 35%; /* Fixed 35% width, no grow/shrink */
+            width: 35%;    /* Fallback */
+            max-width: 35%; /* Ensure it doesn't exceed */
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            text-align: center;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+
+        .logo-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Horizontally center content */
+            justify-content: center; /* Vertically center if needed */
+            width: 100%;
+            text-align: center; /* Ensure text is centered */
+            margin-top: auto; /* Push towards center if using flex-between on sidebar */
+            margin-bottom: auto;
+        }
+
+        .logo {
+            display: block; /* Ensure block behavior for margin auto */
+            margin-left: auto;
+            margin-right: auto;
+            width: 5rem;
+            height: 5rem;
+            border-radius: 50%;
+            border: 4px solid white;
+            object-fit: cover;
+            background-color: white;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            flex-shrink: 0;
+        }
+
+        .issuer-name {
+            font-family: 'Montserrat', sans-serif; /* Distinct header font */
+            font-weight: 700;
+            color: white;
+            font-size: 0.85rem; /* Slightly larger */
+            text-transform: uppercase;
+            letter-spacing: 0.1em; /* Increased spacing */
+            margin: 0;
+        }
+
+        .qr-box {
+            background-color: white;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+            flex-shrink: 0;
+        }
+
+        .main {
+            flex: 1; /* Grow to fill remaining space */
+            width: auto; /* Let flex handle width */
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Force content top, footer bottom */
+            background-color: white;
+            overflow: hidden;
+        }
+
+        .title {
+            font-family: var(--title-font, 'Montserrat', sans-serif);
+            font-weight: var(--title-weight, 800);
+            font-size: var(--title-size, 36pt); /* Absolute massive size */
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 30pt;
+            margin-top: 0;
+            color: var(--primary-color);
+            line-height: 1.1;
+        }
+
+        .recipient {
+            font-weight: var(--recipient-weight, 900);
+            font-size: var(--recipient-size, 60pt); /* 60pt is huge on A4 */
+            font-family: var(--recipient-font, 'Playfair Display', serif);
+            margin-bottom: 20pt;
+            margin-top: 0;
+            color: var(--color, inherit);
+            line-height: 1.1;
+            word-wrap: break-word;
+        }
+
+        .body-text {
+            font-family: var(--body-font, 'Open Sans', sans-serif);
+            font-size: var(--body-size, 18pt);
+            font-weight: var(--body-weight, 400);
+            font-style: italic;
+            margin-bottom: 24pt;
+            color: var(--body-font-color);
+            line-height: 1.5;
+        }
+
+        .course {
+            font-family: var(--course-font, 'Montserrat', sans-serif);
+            font-weight: var(--course-weight, 800);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 24pt;
+            margin-top: 0;
+            font-size: var(--course-size, 24pt);
+            color: var(--secondary-color);
+            line-height: 1.2;
+        }
+
+        .date-line {
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+            margin-top: 0;
+            color: var(--body-font-color);
+        }
+
+        /* Custom Fields Grid Simulation */
+        .custom-fields-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem; /* row-gap col-gap */
+            margin-bottom: 1.5rem;
+            width: 100%;
+            max-width: 28rem;
+        }
+
+        .custom-field-item {
+            /* width: calc(50% - 0.5rem);  Approx for 2 cols */
+            width: 45%; 
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .custom-field-label {
+            font-weight: 600;
+            color: #4b5563; /* text-gray-600 */
+            display: block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .custom-field-value {
+            font-weight: 500;
+            color: var(--body-font-color);
+        }
+
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: auto;
+            padding-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 2px solid var(--primary-color);
+            gap: 1rem;
+        }
+
+        .footer-left {
+            font-size: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: flex-start;
+            flex: 1;
+        }
+
+        .footer-right {
+            font-size: 0.75rem;
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: flex-end;
+            flex: 1;
+        }
+        
+        .footer-bold {
+            font-weight: 700;
+            margin: 0;
+        }
+        
+        .footer-sub {
+            color: #6b7280;
+            margin: 0;
+        }
+
+        .signature-img {
+            height: 40px; 
+            width: auto; 
+            object-fit: contain; 
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* Dynamic styles */
+        .container {
+        --primary-color: {{ primary_color }};
+        --secondary-color: {{ secondary_color }};
+        --body-font-color: {{ body_font_color }};
+        
+        
+        --background-color: {{ background_style_map.get('background-color', 'transparent') }};
+
+        {% if background_base64 %}
+            
+            background-image: url('data:image/png;base64,{{ background_base64 }}');
+            background-size: cover;
+            background-position: center;
+        {% endif %}
+    
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="logo-section">
+                {% if logo_base64 %}
+                <img src="data:image/png;base64,{{ logo_base64 }}" class="logo">
+                {% endif %}
+                <p class="issuer-name">{{ issuer_name }}</p>
+            </div>
+            
+            <div class="qr-box">
+                <img src="data:image/png;base64,{{ qr_base64 }}" style="width: 64px; height: 64px;">
+            </div>
+        </div>
+        
+        <div class="main">
+            <div class="main-content-wrapper">
+                <h1 class="title" style="--title-font: {{ text_style_map.get('title_font', 'inherit') }}; --title-size: {{ text_style_map.get('title_size', '36pt') }}; --title-weight: {{ text_style_map.get('title_weight', '800') }};">{{ custom_text.get('title', 'CERTIFICATE OF COMPLETION') }}</h1>
+                
+                <h2 class="recipient" style="--recipient-font: {{ text_style_map.get('recipient_font', 'inherit') }}; --recipient-size: {{ text_style_map.get('recipient_size', '60pt') }}; --recipient-weight: {{ text_style_map.get('recipient_weight', '900') }}; --color: {{ text_style_map.get('color', 'inherit') }};">{{ recipient_name }}</h2>
+                
+                <p class="body-text" style="--body-font: {{ text_style_map.get('body_font', 'inherit') }}; --body-size: {{ text_style_map.get('body_size', '18pt') }}; --body-weight: {{ text_style_map.get('body_weight', '400') }};">{{ custom_text.get('body', 'has successfully completed the course') }}</p>
+                
+                <p class="course" style="--course-font: {{ text_style_map.get('course_font', 'inherit') }}; --course-size: {{ text_style_map.get('course_size', '24pt') }}; --course-weight: {{ text_style_map.get('course_weight', '800') }};">{{ course_title }}</p>
+                
+                <p class="date-line" style="--date-font: {{ text_style_map.get('date_font', 'inherit') }}; --date-size: {{ text_style_map.get('date_size', 'inherit') }};">{{ custom_text.get('date_prefix', 'Awarded on') }} {{ issue_date }}</p>
+                
+                <!-- Custom Fields Section -->
+                {% if extra_fields %}
+                <div class="custom-fields-grid">
+                    {% for key, value in extra_fields.items() %}
+                        {% if key != 'amount' %}
+                        <div class="custom-field-item">
+                            <span class="custom-field-label">{{ key }}:</span>
+                            <span class="custom-field-value">{{ value }}</span>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="footer">
+                <div class="footer-left" {% if text_style %}style="{{ text_style }}"{% endif %}>
+                    {% if signature_image_base64 %}
+                        <img src="data:image/png;base64,{{ signature_image_base64 }}" class="signature-img" alt="Signature">
+                    {% else %}
+                        <p class="footer-bold">{{ signature if signature else issuer_name }}</p>
+                    {% endif %}
+                    <p class="footer-sub">{{ custom_text.get('signature_label', 'Authorized Signature') }}</p>
+                </div>
+                <div class="footer-right" {% if text_style %}style="{{ text_style }}"{% endif %}>
+                    <!-- Full Verification ID -->
+                    <p class="footer-bold">{{ verification_id if verification_id else 'PENDING' }}</p>
+                    <p class="footer-sub">{{ custom_text.get('verification_label', 'Verification ID') }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

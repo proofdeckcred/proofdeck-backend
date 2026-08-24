@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Georgia:wght@400;700&display=swap');
+        /* Add other fonts dynamically if needed or rely on WeasyPrint font loading */
+        
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            margin: 0;
+            padding: 0;
+            width: 297mm;
+            height: 210mm;
+            background-color: white;
+            /* font-family will be injected inline or rely on default */
+            font-family: 'Roboto', sans-serif;
+            
+            /* Default fallback values for variables */
+            --primary-color: #000000;
+            --secondary-color: #666666;
+            --body-font-color: #333333;
+        }
+
+        .container {
+            /* h-full w-full bg-white relative flex flex-col shadow-xl overflow-hidden */
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: var(--background-color, white);
+            border: 8px double var(--primary-color);
+        }
+
+        .top-bar {
+            height: 12px;
+            border-bottom: 4px solid var(--primary-color);
+            background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+
+        .content {
+            /* flex-grow flex flex-col justify-center items-center text-center p-8 */
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            margin-bottom: 1rem;
+        }
+
+        .title {
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em; /* tracking-wider */
+            line-height: 1.25; /* leading-tight */
+            margin-bottom: 0.5rem; /* mb-2 */
+            margin-top: 0;
+            font-size: 2.5rem; /* isFullscreen: 2.5rem */
+            color: var(--primary-color);
+        }
+
+        .subtitle {
+            font-style: italic;
+            margin-top: 0.25rem; /* my-1 */
+            margin-bottom: 0.25rem;
+            font-size: 1.2rem; /* isFullscreen: 1.2rem */
+            color: #4B5EAA;
+        }
+
+        .recipient {
+            font-weight: 800; /* font-extrabold */
+            margin-top: 0.5rem; /* my-2 */
+            margin-bottom: 0.5rem;
+            font-size: 3rem; /* isFullscreen: 3rem */
+            font-family: var(--font-family, 'Georgia', serif);
+            color: var(--color, var(--body-font-color));
+        }
+
+        .body-text {
+            font-style: italic;
+            margin-top: 0.5rem; /* my-2 */
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem; /* isFullscreen: 1.2rem */
+            color: #4B5EAA;
+        }
+
+        .course-title {
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-top: 0.75rem; /* my-3 */
+            margin-bottom: 0.75rem;
+            font-size: 1.8rem; /* isFullscreen: 1.8rem */
+            color: var(--secondary-color);
+        }
+
+        .awarded-on {
+            font-size: 0.875rem; /* text-sm */
+            margin-bottom: 1rem; /* mb-4 */
+            margin-top: 0;
+            color: var(--body-font-color);
+        }
+
+        .footer {
+            /* flex justify-around w-full mt-auto pt-4 border-t border-gray-100 px-8 */
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 1px solid #f3f4f6; /* border-gray-100 */
+            padding-left: 2rem; /* px-8 */
+            padding-right: 2rem;
+        }
+
+        .footer-block {
+            text-align: center;
+            width: 33.333%;
+        }
+
+        .signature-line {
+            font-weight: 600; /* font-semibold */
+            border-bottom: 1px solid #9ca3af; /* border-gray-400 */
+            padding-bottom: 0.25rem;
+            margin-bottom: 0.25rem;
+            /* textStyle applied to this p */
+            color: var(--body-font-color); 
+        }
+
+        .signature-label {
+            color: #6b7280; /* text-gray-500 */
+            font-size: 0.75rem; /* text-xs */
+        }
+
+        .qr-section {
+            margin-top: 1rem; /* mt-4 */
+        }</style>
+</head>
+<body>
+    <div class="container" style="--primary-color: {{ primary_color }}; --secondary-color: {{ secondary_color }}; --body-font-color: {{ body_font_color }}; --font-family: {{ font_family }}, sans-serif; --background-color: {{ background_style_map.get('background-color', 'white') }}; {% if background_base64 %} background-image: url('data:image/png; base64,{{ background_base64 }}'); background-size: cover; background-position: center; {% endif %}">
+        <div class="top-bar"></div>
+        
+        <div class="content">
+            {% if logo_base64 %}
+            <img src="data:image/png;base64,{{ logo_base64 }}" class="logo" alt="Logo">
+            {% endif %}
+
+            <h1 class="title">{{ custom_text.get('title', 'Certificate of Completion') }}</h1>
+            
+            <p class="subtitle">{{ custom_text.get('subtitle', 'This is to certify that') }}</p>
+            
+            <h2 class="recipient" style="--color: {{ text_style_map.get('color', 'inherit') }}; --font-family: {{ text_style_map.get('font-family', 'inherit') }}; --font-size: {{ text_style_map.get('font-size', 'inherit') }}; --font-weight: {{ text_style_map.get('font-weight', 'inherit') }};">{{ recipient_name }}</h2>
+            
+            <p class="body-text">{{ custom_text.get('body', 'has successfully completed') }}</p>
+            
+            <p class="course-title">{{ course_title }}</p>
+
+            <p class="awarded-on">{{ custom_text.get('date_prefix', 'Awarded on') }} {{ issue_date }}</p>
+
+            <div class="footer">
+                <div class="footer-block">
+                    <p class="signature-line" {% if text_style %}style="{{ text_style }}"{% endif %}>
+                        {{ signature if signature else issuer_name }}
+                    </p>
+                    <span class="signature-label">{{ custom_text.get('signature_label', 'Signature') }}</span>
+                </div>
+                <div class="footer-block">
+                    <p class="signature-line" {% if text_style %}style="{{ text_style }}"{% endif %}>
+                        {{ issuer_name }}
+                    </p>
+                    <span class="signature-label">{{ custom_text.get('issuer_label', 'Issuer') }}</span>
+                </div>
+            </div>
+
+            <div class="qr-section">
+                <img src="data:image/png;base64,{{ qr_base64 }}" style="width: 48px; height: 48px;">
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+
+
