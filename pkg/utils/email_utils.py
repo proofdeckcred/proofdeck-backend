@@ -3,6 +3,16 @@ from flask import current_app
 from ..extensions import mail
 from datetime import datetime
 
+def get_sender(name='ProofDeck'):
+    sender = current_app.config.get('MAIL_DEFAULT_SENDER')
+    if sender and '@' in sender:
+        clean_email = sender.split('<')[-1].replace('>', '').strip()
+        return (name, clean_email)
+    username = current_app.config.get('MAIL_USERNAME')
+    if username and '@' in username:
+        return (name, username)
+    return (name, 'notifications@proofdeck.app')
+
 def send_verification_email(user, code):
     """
     Sends a 6-digit verification code to a new user for account activation.
@@ -35,7 +45,7 @@ def send_verification_email(user, code):
     """
     msg = Message(
         subject="Your ProofDeck Verification Code",
-        sender=('ProofDeck', current_app.config.get('MAIL_USERNAME')),
+        sender=get_sender('ProofDeck'),
         recipients=[user.email],
         html=html_body
     )
@@ -93,7 +103,7 @@ def send_admin_verification_email(admin_user):
     """
     msg = Message(
         subject="[Action Required] New ProofDeck Admin Account Request",
-        sender=('ProofDeck Security', current_app.config.get('MAIL_USERNAME')),
+        sender=get_sender('ProofDeck Security'),
         recipients=[trusted_recipient],
         html=html_body
     )
@@ -142,7 +152,7 @@ def send_password_reset_email(user, reset_url):
     """
     msg = Message(
         subject="Your ProofDeck Password Reset Link",
-        sender=('ProofDeck Support', current_app.config.get('MAIL_USERNAME')),
+        sender=get_sender('ProofDeck Support'),
         recipients=[user.email],
         html=html_body
     )
@@ -226,7 +236,7 @@ def send_bulk_email(users, subject, user_content, header_image_url=None):
 
                 msg = Message(
                     subject=subject,
-                    sender=('ProofDeck', current_app.config.get('MAIL_USERNAME')),
+                    sender=get_sender('ProofDeck'),
                     recipients=[user.email],
                     html=html_body
                 )
@@ -240,7 +250,7 @@ def send_support_email(email, message):
     """
     Sends a support notification email to the admin.
     """
-    trusted_recipient = current_app.config.get('MAIL_USERNAME') or current_app.config.get('ADMIN_EMAIL')
+    trusted_recipient = current_app.config.get('ADMIN_EMAIL') or current_app.config.get('MAIL_USERNAME')
     
     html_body = f"""
     <!DOCTYPE html>
@@ -274,7 +284,7 @@ def send_support_email(email, message):
     
     msg = Message(
         subject=f"Support Request from {email}",
-        sender=('ProofDeck Support', current_app.config.get('MAIL_USERNAME')),
+        sender=get_sender('ProofDeck Support'),
         recipients=[trusted_recipient],
         html=html_body,
         reply_to=email
@@ -324,7 +334,7 @@ def send_team_invitation_email(email, invite_url, company_name):
     """
     msg = Message(
         subject=f"Invitation to join {company_name} on ProofDeck",
-        sender=('ProofDeck Team', current_app.config.get('MAIL_USERNAME')),
+        sender=get_sender('ProofDeck Team'),
         recipients=[email],
         html=html_body
     )

@@ -46,9 +46,13 @@ def create_certificate_email(certificate, pdf_buffer):
     </html>
     """
     
+    sender_email = current_app.config.get('MAIL_DEFAULT_SENDER') or current_app.config.get('MAIL_USERNAME') or 'notifications@proofdeck.app'
+    if '<' in sender_email:
+        sender_email = sender_email.split('<')[-1].replace('>', '').strip()
+
     msg = Message(
         subject=subject,
-        sender=('ProofDeck', current_app.config.get('MAIL_USERNAME')),
+        sender=('ProofDeck', sender_email),
         recipients=[certificate.recipient_email],
         html=html_body
     )

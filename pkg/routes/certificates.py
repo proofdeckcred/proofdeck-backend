@@ -26,9 +26,12 @@ certificate_bp = Blueprint('certificates', __name__)
 
 def _send_issuer_notification_email(issuer, subject, summary_html):
     try:
+        sender_email = current_app.config.get('MAIL_DEFAULT_SENDER') or current_app.config.get('MAIL_USERNAME') or 'notifications@proofdeck.app'
+        if '<' in sender_email:
+            sender_email = sender_email.split('<')[-1].replace('>', '').strip()
         msg = Message(
             subject=subject,
-            sender=('ProofDeck', current_app.config.get('MAIL_USERNAME')),
+            sender=('ProofDeck', sender_email),
             recipients=[issuer.email],
             html=summary_html
         )
