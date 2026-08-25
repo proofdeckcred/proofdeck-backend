@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt, current_user
 from datetime import datetime, timedelta
-from ..models import User, Payment, Admin, db, AdminActionLog, Certificate, Company
+from ..models import User, Payment, Admin, db, AdminActionLog, Certificate, Tenant, Membership
 from sqlalchemy import or_
 
 admin_users_bp = Blueprint('admin_users', __name__)
@@ -41,7 +41,7 @@ def get_users():
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
 
-    query = User.query.outerjoin(Company, User.company_id == Company.id)
+    query = User.query
     if search:
         query = query.filter(or_(User.name.ilike(f'%{search}%'), User.email.ilike(f'%{search}%')))
     if role:
@@ -59,17 +59,20 @@ def get_users():
         query = query.filter(User.created_at < end_date_obj + timedelta(days=1))
 
     users = query.paginate(page=page, per_page=limit, error_out=False)
-    user_list = [{
-        'id': u.id,
-        'name': u.name,
-        'email': u.email,
-        'role': u.role,
-        'cert_quota': u.cert_quota,
-        'signup_date': u.created_at.isoformat(),
-        'last_login': u.last_login.isoformat() if u.last_login else None,
-        'subscription_expiry': u.subscription_expiry.isoformat() if u.subscription_expiry else None,
-        'company_name': u.company.name if u.company else 'N/A'
-    } for u in users.items]
+    user_list = []
+    for u in users.items:
+        workspaces = [m.tenant.name for m in u.memberships if m.status == 'active']
+        user_list.append({
+            'id': u.id,
+            'name': u.name,
+            'email': u.email,
+            'role': u.role,
+            'cert_quota': u.cert_quota,
+            'signup_date': u.created_at.isoformat(),
+            'last_login': u.last_login.isoformat() if u.last_login else None,
+            'subscription_expiry': u.subscription_expiry.isoformat() if u.subscription_expiry else None,
+            'company_name': ", ".join(workspaces) if workspaces else 'N/A'
+        })
 
     return jsonify({
         'users': user_list,
@@ -114,7 +117,7 @@ def get_user_details(user_id):
         'signup_date': user.created_at.isoformat(),
         'last_login': user.last_login.isoformat() if user.last_login else None,
         'subscription_expiry': user.subscription_expiry.isoformat() if user.subscription_expiry else None,
-        'company': {'id': user.company.id, 'name': user.company.name} if user.company else None
+        'company': {'id': user.memberships[0].tenant.id, 'name': user.memberships[0].tenant.name} if user.memberships else None
     }
 
     return jsonify({
@@ -166,8 +169,8 @@ def delete_user(user_id):
     user = User.query.get_or_404(user_id)
 
     # Prevent deleting a user who owns a company
-    if user.owned_company:
-        return jsonify({"msg": f"Cannot delete user. They own the company '{user.owned_company.name}'. Please delete the company first or transfer ownership."}), 400
+    if user.owned_tenant:
+        return jsonify({"msg": f"Cannot delete user. They own the company '{user.owned_tenant.name}'. Please delete the company first or transfer ownership."}), 400
 
     # Nullify FKs on associated records
     Payment.query.filter_by(user_id=user.id).update({'user_id': None})

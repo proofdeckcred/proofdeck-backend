@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, current_user
-from ..models import db, Admin, Company, User, Certificate, AdminActionLog
+from ..models import db, Admin, Tenant, User, Certificate, AdminActionLog, Membership
 from sqlalchemy import func, or_
-from sqlalchemy.orm import aliased # <--- IMPORT THIS
+from sqlalchemy.orm import aliased
 
 admin_companies_bp = Blueprint('admin_companies', __name__)
 
@@ -16,38 +16,33 @@ def get_companies():
     limit = request.args.get('limit', 10, type=int)
     search = request.args.get('search', '')
     
-    # --- FIX: Create an alias for the User table to represent the Owner ---
     Owner = aliased(User)
     
-    # --- FIX: Rebuild the query using the Owner alias for clarity ---
     query = db.session.query(
-        Company,
+        Tenant,
         Owner.name.label('owner_name'),
-        func.count(User.id).label('member_count')
+        func.count(Membership.id).label('member_count')
     ).join(
-        Owner, Company.owner_id == Owner.id  # Join to get the owner's name
+        Owner, Tenant.owner_id == Owner.id
     ).outerjoin(
-        User, Company.id == User.company_id # Left Join to count all members
+        Membership, Tenant.id == Membership.tenant_id
     )
 
     if search:
         search_term = f'%{search}%'
-        # --- FIX: Search by Company name OR the aliased Owner's name ---
-        query = query.filter(or_(Company.name.ilike(search_term), Owner.name.ilike(search_term)))
+        query = query.filter(or_(Tenant.name.ilike(search_term), Owner.name.ilike(search_term)))
         
-    # --- FIX: Group by the company and the specific owner ---
-    query = query.group_by(Company.id, Owner.name).order_by(Company.created_at.desc())
+    query = query.group_by(Tenant.id, Owner.name).order_by(Tenant.created_at.desc())
     
     paginated_results = query.paginate(page=page, per_page=limit, error_out=False)
     
-    # The rest of the function now works correctly with the fixed query
     results = [{
-        'id': company.id,
-        'name': company.name,
+        'id': tenant.id,
+        'name': tenant.name,
         'owner_name': owner_name,
         'member_count': member_count,
-        'created_at': company.created_at.isoformat()
-    } for company, owner_name, member_count in paginated_results.items]
+        'created_at': tenant.created_at.isoformat()
+    } for tenant, owner_name, member_count in paginated_results.items]
 
     return jsonify({
         'companies': results,
@@ -62,16 +57,17 @@ def get_company_details(company_id):
     if not isinstance(current_user, Admin):
         return jsonify({"msg": "Admin access required"}), 403
 
-    company = Company.query.get_or_404(company_id)
+    company = Tenant.query.get_or_404(company_id)
     
+    memberships = Membership.query.filter_by(tenant_id=company_id, status='active').all()
     members = [{
-        'id': user.id,
-        'name': user.name,
-        'email': user.email,
-        'role': user.role
-    } for user in company.users]
+        'id': m.user.id,
+        'name': m.user.name,
+        'email': m.user.email,
+        'role': m.role.title()
+    } for m in memberships]
 
-    certificates = Certificate.query.filter_by(company_id=company_id).order_by(Certificate.created_at.desc()).limit(20).all()
+    certificates = Certificate.query.filter_by(tenant_id=company_id).order_by(Certificate.created_at.desc()).limit(20).all()
     cert_list = [{
         'id': c.id,
         'recipient_name': c.recipient_name,
@@ -85,8 +81,43 @@ def get_company_details(company_id):
         'name': company.name,
         'owner': {'id': company.owner.id, 'name': company.owner.name, 'email': company.owner.email},
         'created_at': company.created_at.isoformat(),
+        'cert_quota': company.cert_quota,
         'members': members,
         'recent_certificates': cert_list
+    }), 200
+
+@admin_companies_bp.route('/companies/<int:company_id>/adjust-quota', methods=['POST'])
+@jwt_required()
+def adjust_company_quota(company_id):
+    if not isinstance(current_user, Admin):
+        return jsonify({"msg": "Admin access required"}), 403
+    
+    data = request.get_json()
+    adjustment = data.get('adjustment')
+    reason = data.get('reason')
+
+    if not isinstance(adjustment, int) or not reason:
+        return jsonify({"msg": "Adjustment amount (integer) and reason are required"}), 400
+
+    company = Tenant.query.get_or_404(company_id)
+    
+    if company.cert_quota + adjustment < 0:
+        return jsonify({"msg": "Cannot adjust quota below zero"}), 400
+        
+    company.cert_quota += adjustment
+
+    log_entry = AdminActionLog(
+        admin_id=current_user.id,
+        action=f"Adjusted tenant quota for {company.name} by {adjustment}. Reason: {reason}",
+        target_type='tenant',
+        target_id=company.id
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Company quota adjusted successfully",
+        "new_quota": company.cert_quota
     }), 200
 
 @admin_companies_bp.route('/companies/<int:company_id>/delete', methods=['DELETE'])
@@ -95,25 +126,21 @@ def delete_company(company_id):
     if not isinstance(current_user, Admin):
         return jsonify({"msg": "Admin access required"}), 403
 
-    company = Company.query.get_or_404(company_id)
+    company = Tenant.query.get_or_404(company_id)
     company_name = company.name
 
-    # Disassociate users from the company
-    User.query.filter_by(company_id=company_id).update({'company_id': None})
-    
-    # Nullify company_id on certificates and templates (handled by ondelete='SET NULL' in model but can be explicit)
-    # This is not strictly needed if DB cascade is set up, but good for clarity.
-    Certificate.query.filter_by(company_id=company_id).update({'company_id': None})
+    # Nullify tenant_id on certificates and templates
+    Certificate.query.filter_by(tenant_id=company_id).update({'tenant_id': None})
     db.session.delete(company)
 
     # Log the action
     log = AdminActionLog(
         admin_id=current_user.id,
-        action=f"Deleted company: {company_name} (ID: {company_id})",
-        target_type='company',
+        action=f"Deleted tenant: {company_name} (ID: {company_id})",
+        target_type='tenant',
         target_id=company_id
     )
     db.session.add(log)
     db.session.commit()
 
-    return jsonify({"msg": "Company has been deleted successfully. Associated users are now individual accounts."}), 200
+    return jsonify({"msg": "Organization has been deleted successfully."}), 200

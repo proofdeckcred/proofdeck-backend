@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from ..models import db, Template, Certificate, User
+from ..utils.helpers import get_active_context
 import json
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -18,36 +19,43 @@ def create_custom_template():
     user_id = int(get_jwt_identity())
     user = User.query.get_or_404(user_id)
     
-    if 'template_image' not in request.files:
-        return jsonify({"msg": "Missing template image file."}), 400
     if 'title' not in request.form or not request.form.get('title').strip():
         return jsonify({"msg": "Missing template title."}), 400
     if 'layout_data' not in request.form:
         return jsonify({"msg": "Missing template layout data."}), 400
 
-    file = request.files['template_image']
     title = request.form.get('title')
     layout_data_str = request.form.get('layout_data')
-
-    if not (file and allowed_file(file.filename)):
-        return jsonify({"msg": "Invalid file type. Please use PNG or JPG."}), 400
     
     try:
         layout_data = json.loads(layout_data_str)
     except json.JSONDecodeError:
         return jsonify({"msg": "Invalid layout data format."}), 400
 
-    filename = secure_filename(f"{user_id}_custom_{file.filename}")
-    file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-    file.save(file_path)
+    background_url = None
+
+    if 'template_image' in request.files:
+        file = request.files['template_image']
+        if file and allowed_file(file.filename):
+            filename = secure_filename(f"{user_id}_custom_{file.filename}")
+            file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+            file.save(file_path)
+            background_url = f"/uploads/{filename}"
+            layout_data['background'] = {'image': background_url}
+        else:
+            return jsonify({"msg": "Invalid file type. Please use PNG or JPG."}), 400
+    else:
+        # Check if layout_data already has background image data URL (preset)
+        background_img = layout_data.get('background', {}).get('image')
+        if background_img and background_img.startswith('data:'):
+            background_url = background_img
+        else:
+            return jsonify({"msg": "Missing template image file or background preset."}), 400
     
-    background_url = f"/uploads/{filename}"
-    
-    layout_data['background'] = {'image': background_url}
-    
+    is_comp, tenant_id, _, _ = get_active_context(user)
     new_template = Template(
         user_id=user_id,
-        company_id=user.company_id,
+        tenant_id=tenant_id if is_comp else None,
         title=title,
         background_url=background_url,
         layout_style='visual',
@@ -64,9 +72,18 @@ def create_custom_template():
 def update_custom_template(template_id):
     user_id = int(get_jwt_identity())
     template = Template.query.get_or_404(template_id)
+    user = User.query.get(user_id)
 
-    if template.is_public or template.user_id != user_id or template.layout_style != 'visual':
+    if template.is_public or template.layout_style != 'visual':
         return jsonify({"msg": "Permission denied"}), 403
+
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        if template.tenant_id != tenant_id:
+            return jsonify({"msg": "Permission denied"}), 403
+    else:
+        if template.user_id != user_id or template.tenant_id is not None:
+            return jsonify({"msg": "Permission denied"}), 403
 
     title = request.form.get('title', '').strip()
     if title:
@@ -130,9 +147,10 @@ def create_template():
             bg_file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
             background_url = f"/uploads/{filename}"
 
+    is_comp, tenant_id, _, _ = get_active_context(user)
     new_template = Template(
         user_id=user_id,
-        company_id=user.company_id,
+        tenant_id=tenant_id if is_comp else None,
         title=data.get('title'),
         logo_url=logo_url,
         background_url=background_url,
@@ -151,9 +169,16 @@ def create_template():
 @jwt_required(locations=["headers"])
 def get_user_templates():
     user_id = int(get_jwt_identity())
-    templates = Template.query.filter(
-        (Template.user_id == user_id) | (Template.is_public == True)
-    ).order_by(Template.is_public.asc(), Template.created_at.desc()).all()
+    user = User.query.get(user_id)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        templates = Template.query.filter(
+            (Template.tenant_id == tenant_id) | (Template.is_public == True)
+        ).order_by(Template.is_public.asc(), Template.created_at.desc()).all()
+    else:
+        templates = Template.query.filter(
+            ((Template.user_id == user_id) & (Template.tenant_id == None)) | (Template.is_public == True)
+        ).order_by(Template.is_public.asc(), Template.created_at.desc()).all()
 
     templates_data = []
     for t in templates:
@@ -180,8 +205,16 @@ def get_user_templates():
 def get_template(template_id):
     user_id = int(get_jwt_identity())
     template = Template.query.get_or_404(template_id)
-    if not template.is_public and template.user_id != user_id:
-        return jsonify({"msg": "Permission denied"}), 403
+    user = User.query.get(user_id)
+    
+    if not template.is_public:
+        is_comp, tenant_id, _, _ = get_active_context(user)
+        if is_comp:
+            if template.tenant_id != tenant_id:
+                return jsonify({"msg": "Permission denied"}), 403
+        else:
+            if template.user_id != user_id or template.tenant_id is not None:
+                return jsonify({"msg": "Permission denied"}), 403
 
     return jsonify({
         'id': template.id,
@@ -204,8 +237,18 @@ def get_template(template_id):
 def update_template(template_id):
     user_id = int(get_jwt_identity())
     template = Template.query.get_or_404(template_id)
-    if template.is_public or template.user_id != user_id:
+    user = User.query.get(user_id)
+    
+    if template.is_public:
         return jsonify({"msg": "Permission denied"}), 403
+        
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        if template.tenant_id != tenant_id:
+            return jsonify({"msg": "Permission denied"}), 403
+    else:
+        if template.user_id != user_id or template.tenant_id is not None:
+            return jsonify({"msg": "Permission denied"}), 403
 
     data = request.form
     
@@ -243,9 +286,18 @@ def update_template(template_id):
 def delete_template(template_id):
     user_id = int(get_jwt_identity())
     template = Template.query.get_or_404(template_id)
+    user = User.query.get(user_id)
 
-    if template.is_public or template.user_id != user_id:
+    if template.is_public:
         return jsonify({"msg": "Permission denied"}), 403
+        
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        if template.tenant_id != tenant_id:
+            return jsonify({"msg": "Permission denied"}), 403
+    else:
+        if template.user_id != user_id or template.tenant_id is not None:
+            return jsonify({"msg": "Permission denied"}), 403
 
     if Certificate.query.filter_by(template_id=template.id).first():
         return jsonify({"msg": "Cannot delete template as it is currently in use by one or more certificates."}), 409

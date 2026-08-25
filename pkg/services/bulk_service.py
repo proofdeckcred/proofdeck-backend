@@ -1,14 +1,14 @@
 import pandas as pd
 import uuid
 from io import BytesIO
-from ..models import db, Certificate, User, Template
+from ..models import db, Certificate, User, Template, Tenant, Membership
 from ..utils.helpers import parse_smart_date, normalize_email, normalize_headers
 from ..services.email_service import create_certificate_email
 from ..services.pdf_service import generate_certificate_pdf
 from ..extensions import mail
 from datetime import datetime
 
-def process_bulk_upload(app, file_content, filename, template_id, group_id, user_id):
+def process_bulk_upload(app, file_content, filename, template_id, group_id, user_id, is_comp=False, company_id=None):
     """
     Reads file content (bytes), normalizes data, and creates certificates in bulk (Background Task).
     Sends an email summary to the issuer upon completion.
@@ -16,6 +16,15 @@ def process_bulk_upload(app, file_content, filename, template_id, group_id, user
     with app.app_context():
         user = User.query.get(user_id)
         template = Template.query.get(template_id)
+        
+        # Resolve quota holder (tenant if user is in tenant mode)
+        quota_holder = user
+        tenant_name = None
+        if is_comp and company_id:
+            tenant = Tenant.query.get(company_id)
+            if tenant:
+                tenant_name = tenant.name
+                quota_holder = tenant
         
         # 1. Read File
         try:
@@ -37,17 +46,14 @@ def process_bulk_upload(app, file_content, filename, template_id, group_id, user
         df = normalize_headers(df)
 
         # 3. Validation
-        required_cols = {'recipient_name', 'course_title', 'issue_date'}
-        missing = required_cols - set(df.columns)
-        if missing:
-            # Fallback detection could go here
-            print(f"Background Upload Error: Missing columns {missing}")
+        if 'recipient_name' not in df.columns:
+            print("Background Upload Error: Missing compulsory 'recipient_name' column")
             return
 
         # 4. Processing
         certs_to_add = []
         errors = []
-        quota_left = user.cert_quota
+        quota_left = quota_holder.cert_quota
         
         # Replace NaN with None
         df = df.where(pd.notna(df), None)
@@ -62,11 +68,11 @@ def process_bulk_upload(app, file_content, filename, template_id, group_id, user
             try:
                 # Data Extraction
                 r_name = row.get('recipient_name')
-                c_title = row.get('course_title')
+                c_title = str(row.get('course_title')) if row.get('course_title') else ""
                 i_date_raw = row.get('issue_date')
 
-                if not r_name or not c_title:
-                    errors.append({"row": row_num, "msg": "Missing Name or Course Title."})
+                if not r_name:
+                    errors.append({"row": row_num, "msg": "Missing compulsory recipient name."})
                     continue
 
                 # Smart Date Parsing (Fixes the Excel 45587 error)
@@ -74,7 +80,7 @@ def process_bulk_upload(app, file_content, filename, template_id, group_id, user
 
                 # Optional Fields
                 r_email = normalize_email(row.get('recipient_email'))
-                issuer = str(row.get('issuer_name')) if row.get('issuer_name') else (user.company.name if user.company else user.name)
+                issuer = str(row.get('issuer_name')) if row.get('issuer_name') else (tenant_name if (is_comp and tenant_name) else user.name)
                 sig = str(row.get('signature')) if row.get('signature') else None
                 
                 # Extra Fields (Amount, etc)
@@ -85,7 +91,7 @@ def process_bulk_upload(app, file_content, filename, template_id, group_id, user
                 # Create Object
                 cert = Certificate(
                     user_id=user.id,
-                    company_id=user.company_id,
+                    tenant_id=company_id if is_comp else None,
                     template_id=template.id,
                     group_id=group_id,
                     recipient_name=str(r_name),
@@ -107,8 +113,21 @@ def process_bulk_upload(app, file_content, filename, template_id, group_id, user
         # 5. Commit to DB
         if certs_to_add:
             try:
-                db.session.bulk_save_objects(certs_to_add)
-                user.cert_quota = quota_left
+                db.session.add_all(certs_to_add)
+                db.session.flush()
+
+                from ..models import QuotaTransaction
+                txns = []
+                for cert in certs_to_add:
+                    txns.append(QuotaTransaction(
+                        tenant_id=company_id if is_comp else None,
+                        user_id=user.id,
+                        certificate_id=cert.id,
+                        amount=-1
+                    ))
+                db.session.add_all(txns)
+
+                quota_holder.cert_quota = quota_left
                 db.session.commit()
             except Exception as e:
                 db.session.rollback()

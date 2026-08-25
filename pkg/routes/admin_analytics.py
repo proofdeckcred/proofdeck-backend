@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, current_user
-from ..models import User, Certificate, Payment, Admin, Company, db
+from ..models import User, Certificate, Payment, Admin, Tenant, db
 from sqlalchemy import func, extract, cast, Date
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -46,12 +46,12 @@ def get_dashboard_stats():
     avg_certs_user = round(total_certificates / total_users, 1) if total_users > 0 else 0
 
     # 3. Engagement & Churn (The "Pulse")
-    total_companies = Company.query.count() or 0
+    total_companies = Tenant.query.count() or 0
     
     # Active Orgs: Issued a cert in last 30 days
-    active_companies_30d = db.session.query(func.count(func.distinct(Certificate.company_id))).filter(
+    active_companies_30d = db.session.query(func.count(func.distinct(Certificate.tenant_id))).filter(
         Certificate.created_at >= thirty_days_ago,
-        Certificate.company_id.isnot(None)
+        Certificate.tenant_id.isnot(None)
     ).scalar() or 0
 
     # Churn Risk: Failed payments in last 30 days
@@ -121,7 +121,7 @@ def get_analytics():
 
     total_users = User.query.count() or 0
     total_certificates = Certificate.query.count() or 0
-    total_companies = Company.query.count() or 0
+    total_companies = Tenant.query.count() or 0
     total_revenue = db.session.query(func.sum(Payment.amount)).filter(Payment.status == 'paid').scalar() or 0.0
     
     kpi_stats = {
@@ -177,8 +177,8 @@ def get_analytics():
     ).join(Certificate, User.id == Certificate.user_id).group_by(User.name).order_by(func.count(Certificate.id).desc()).limit(5).all()
 
     top_companies = db.session.query(
-        Company.name, func.count(Certificate.id).label('cert_count')
-    ).join(Certificate, Company.id == Certificate.company_id).group_by(Company.name).order_by(func.count(Certificate.id).desc()).limit(5).all()
+        Tenant.name, func.count(Certificate.id).label('cert_count')
+    ).join(Certificate, Tenant.id == Certificate.tenant_id).group_by(Tenant.name).order_by(func.count(Certificate.id).desc()).limit(5).all()
 
     return jsonify({
         'kpi_stats': kpi_stats,

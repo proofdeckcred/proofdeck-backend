@@ -39,19 +39,18 @@ class Admin(db.Model):
         self.verification_code = str(random.randint(100000, 999999))
         self.verification_expiry = datetime.utcnow() + timedelta(minutes=15)
 
-class Company(db.Model):
-    __tablename__ = 'companies'
+class Tenant(db.Model):
+    __tablename__ = 'tenants'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False)
     unique_id = db.Column(db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    cert_quota = db.Column(db.Integer, default=20, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    users = db.relationship('User', backref='company', lazy=True, foreign_keys='User.company_id')
-    owner = db.relationship('User', backref=db.backref('owned_company', uselist=False), foreign_keys=[owner_id])
-    
-    templates = db.relationship('Template', backref='company', lazy=True)
-    certificates = db.relationship('Certificate', backref='company', lazy=True)
+    owner = db.relationship('User', backref=db.backref('owned_tenant', uselist=False), foreign_keys=[owner_id])
+    templates = db.relationship('Template', backref='tenant', lazy=True)
+    certificates = db.relationship('Certificate', backref='tenant', lazy=True)
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -64,7 +63,6 @@ class User(db.Model):
     subscription_expiry = db.Column(db.DateTime, nullable=True)
     signature_image_url = db.Column(db.Text, nullable=True)
     api_key = db.Column(db.String(64), unique=True, nullable=True, index=True)
-    company_id = db.Column(db.Integer, db.ForeignKey('companies.id', ondelete='SET NULL', use_alter=True), nullable=True)
     
     # Referral Fields
     referral_code = db.Column(db.String(10), unique=True, nullable=True)
@@ -121,7 +119,7 @@ class Template(db.Model):
     __tablename__ = 'templates'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True) 
-    company_id = db.Column(db.Integer, db.ForeignKey('companies.id', ondelete='SET NULL'), nullable=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='SET NULL'), nullable=True)
     title = db.Column(db.String(150), nullable=False)
     background_url = db.Column(db.Text)
     logo_url = db.Column(db.Text)
@@ -156,9 +154,12 @@ class Group(db.Model):
     __tablename__ = 'groups'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='SET NULL'), nullable=True)
     name = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     certificates = db.relationship('Certificate', backref='group', lazy=True)
+
+    tenant = db.relationship('Tenant', backref=db.backref('groups', lazy=True))
 
 class Certificate(db.Model):
     __tablename__ = 'certificates'
@@ -166,7 +167,7 @@ class Certificate(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     template_id = db.Column(db.Integer, db.ForeignKey('templates.id', ondelete='CASCADE'), nullable=False)
     group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=True)
-    company_id = db.Column(db.Integer, db.ForeignKey('companies.id', ondelete='SET NULL'), nullable=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='SET NULL'), nullable=True)
     recipient_name = db.Column(db.String(150), nullable=False)
     recipient_email = db.Column(db.String(120), nullable=True)
     course_title = db.Column(db.String(150), nullable=False)
@@ -215,3 +216,40 @@ class SupportWidgetMessage(db.Model):
     sender_type = db.Column(db.Enum('user', 'admin', name='message_sender_types'), default='user', nullable=False)
     admin_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=True) # If reply from admin
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class TeamInvitation(db.Model):
+    __tablename__ = 'team_invitations'
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False)
+    email = db.Column(db.String(120), nullable=False)
+    token = db.Column(db.String(64), unique=True, nullable=False)
+    status = db.Column(db.String(20), default='pending', nullable=False) # pending, accepted, expired, cancelled
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+
+    tenant = db.relationship('Tenant', backref=db.backref('invitations', lazy=True, cascade="all, delete-orphan"))
+
+class Membership(db.Model):
+    __tablename__ = 'memberships'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False)
+    role = db.Column(db.Enum('owner', 'admin', 'member', name='membership_roles'), default='member', nullable=False)
+    status = db.Column(db.Enum('pending', 'active', name='membership_statuses'), default='pending', nullable=False)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('memberships', lazy=True, cascade="all, delete-orphan"))
+    tenant = db.relationship('Tenant', backref=db.backref('memberships', lazy=True, cascade="all, delete-orphan"))
+
+class QuotaTransaction(db.Model):
+    __tablename__ = 'quota_transactions'
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='SET NULL'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    certificate_id = db.Column(db.Integer, db.ForeignKey('certificates.id', ondelete='SET NULL'), nullable=True)
+    amount = db.Column(db.Integer, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='quota_transactions')
+    tenant = db.relationship('Tenant', backref='quota_transactions')
+    certificate = db.relationship('Certificate', backref='quota_transactions')

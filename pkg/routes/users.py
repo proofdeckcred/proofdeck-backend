@@ -3,7 +3,7 @@ import uuid
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
-from ..models import User, db, Company, Certificate, Template
+from ..models import User, db, Tenant, Certificate, Template, Membership, Group
 
 users_bp = Blueprint('users', __name__)
 
@@ -21,20 +21,41 @@ def get_current_user():
         return jsonify({"msg": "User not found"}), 404
 
     company_data = None
-    if user.company_id:
-        company = Company.query.get(user.company_id)
-        if company:
-            company_data = {"id": company.id, "name": company.name}
+    cert_quota = user.cert_quota
+    
+    from ..utils.helpers import get_active_context
+    is_comp, tenant_id, quota_holder, active_role = get_active_context(user)
+    if is_comp:
+        cert_quota = quota_holder.cert_quota
+        active_tenant = Tenant.query.get(tenant_id)
+        if active_tenant:
+            company_data = {
+                "id": active_tenant.id,
+                "name": active_tenant.name,
+                "owner_id": active_tenant.owner_id,
+                "active_role": active_role
+            }
+
+    # Fetch all active workspaces/memberships
+    memberships = Membership.query.filter_by(user_id=user.id, status='active').all()
+    workspaces_data = []
+    for m in memberships:
+        workspaces_data.append({
+            "id": m.tenant.id,
+            "name": m.tenant.name,
+            "role": m.role
+        })
 
     return jsonify({
         "id": user.id,
         "name": user.name,
         "email": user.email,
         "role": user.role,
-        "cert_quota": user.cert_quota,
+        "cert_quota": cert_quota,
         "signature_image_url": user.signature_image_url,
         "api_key": user.api_key,
-        "company": company_data
+        "company": company_data,
+        "workspaces": workspaces_data
     }), 200
 
 
@@ -72,32 +93,39 @@ def switch_to_company_account():
     user = User.query.get_or_404(user_id)
     data = request.get_json()
 
-    if user.company_id:
-        return jsonify({"msg": "User already belongs to a company"}), 400
-
     company_name = data.get('company_name', '').strip()
     if not company_name:
         return jsonify({"msg": "Company name is required"}), 400
     
     try:
-        new_company = Company(name=company_name, owner_id=user.id)
-        db.session.add(new_company)
+        new_tenant = Tenant(name=company_name, owner_id=user.id)
+        db.session.add(new_tenant)
         db.session.flush()
 
-        user.company_id = new_company.id
+        new_membership = Membership(
+            user_id=user.id,
+            tenant_id=new_tenant.id,
+            role='owner',
+            status='active'
+        )
+        db.session.add(new_membership)
         
-        Certificate.query.filter_by(user_id=user.id, company_id=None).update({"company_id": new_company.id})
-        Template.query.filter_by(user_id=user.id, company_id=None).update({"company_id": new_company.id})
+        # Migrate personal items to this first tenant if it's their first workspace
+        active_memberships_count = Membership.query.filter_by(user_id=user.id, status='active').count()
+        if active_memberships_count == 1:
+            Certificate.query.filter_by(user_id=user.id, tenant_id=None).update({"tenant_id": new_tenant.id})
+            Template.query.filter_by(user_id=user.id, tenant_id=None).update({"tenant_id": new_tenant.id})
+            Group.query.filter_by(user_id=user.id, tenant_id=None).update({"tenant_id": new_tenant.id})
         
         db.session.commit()
 
         return jsonify({
-            "msg": "Successfully switched to a company account.",
-            "company": {"id": new_company.id, "name": new_company.name}
+            "msg": "Successfully created a company account.",
+            "company": {"id": new_tenant.id, "name": new_tenant.name}
         }), 200
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error switching to company account: {e}")
+        current_app.logger.error(f"Error creating company account: {e}")
         return jsonify({"msg": "An error occurred while creating the company account."}), 500
 
 @users_bp.route('/me/api-key', methods=['POST'])

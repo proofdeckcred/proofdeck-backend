@@ -11,14 +11,14 @@ import pandas as pd
 from flask_mail import Message
 
 # Database & Models
-from ..models import db, Certificate, Template, User, Company
+from ..models import db, Certificate, Template, User, Tenant, QuotaTransaction
 from ..extensions import mail
 
 # Modular Services & Utils
 from ..services.pdf_service import generate_certificate_pdf
 from ..services.email_service import create_certificate_email
 from ..services.bulk_service import process_bulk_upload
-from ..utils.helpers import parse_smart_date, normalize_email
+from ..utils.helpers import parse_smart_date, normalize_email, get_active_context
 
 certificate_bp = Blueprint('certificates', __name__)
 
@@ -83,10 +83,16 @@ def get_certificate_pdf(cert_id):
     """
     user_id = int(get_jwt_identity())
     certificate = Certificate.query.get_or_404(cert_id)
+    user = User.query.get(user_id)
     
-    # Ownership check
-    if certificate.user_id != user_id:
-        return jsonify({"msg": "Permission denied"}), 403
+    # Ownership/multi-tenant check
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        if certificate.tenant_id != tenant_id:
+            return jsonify({"msg": "Permission denied"}), 403
+    else:
+        if certificate.user_id != user_id or certificate.tenant_id is not None:
+            return jsonify({"msg": "Permission denied"}), 403
 
     template = Template.query.get(certificate.template_id)
     issuer = User.query.get(certificate.user_id)
@@ -94,10 +100,15 @@ def get_certificate_pdf(cert_id):
     try:
         # Use centralized service
         pdf_buffer = generate_certificate_pdf(certificate, template, issuer)
+        import re
+        sane_name = re.sub(r'[\W_]+', '_', certificate.recipient_name).strip('_')
+        if not sane_name:
+            sane_name = f"doc_{certificate.verification_id}"
+        filename = f"{sane_name}.pdf"
         return Response(
             pdf_buffer, 
             mimetype='application/pdf', 
-            headers={'Content-Disposition': f'attachment; filename=doc_{certificate.verification_id}.pdf'}
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
         )
     except Exception as e:
         current_app.logger.error(f"PDF Gen Error: {e}")
@@ -119,10 +130,20 @@ def create_certificate():
         return jsonify({"msg": "Missing required fields"}), 400
 
     template = Template.query.get(data['template_id'])
-    if not template or (not template.is_public and template.user_id != user_id):
-        return jsonify({"msg": "Template not found or permission denied"}), 404
+    if not template:
+        return jsonify({"msg": "Template not found"}), 404
+        
+    is_comp, tenant_id, quota_holder, _ = get_active_context(user)
 
-    if user.cert_quota <= 0:
+    if not template.is_public:
+        if is_comp:
+            if template.tenant_id != tenant_id:
+                return jsonify({"msg": "Template permission denied"}), 403
+        else:
+            if template.user_id != user_id or template.tenant_id is not None:
+                return jsonify({"msg": "Template permission denied"}), 403
+
+    if quota_holder.cert_quota <= 0:
         return jsonify({"msg": "Insufficient quota remaining"}), 403
 
     try:
@@ -134,17 +155,24 @@ def create_certificate():
         
         # Fallback signature logic
         sig = data.get('signature')
-        if not sig and user.signature_image_url:
-            sig = user.name
+        if not sig:
+            if user.signature_image_url:
+                sig = None  # Allow default signature image to show by keeping text empty
+            else:
+                sig = user.name
             
         # Fallback issuer name logic
         issuer_name = data.get('issuer_name')
         if not issuer_name:
-            issuer_name = user.company.name if user.company else user.name
+            if is_comp:
+                active_tenant = Tenant.query.get(tenant_id)
+                issuer_name = active_tenant.name if active_tenant else user.name
+            else:
+                issuer_name = user.name
 
         certificate = Certificate(
             user_id=user_id,
-            company_id=user.company_id,
+            tenant_id=tenant_id if is_comp else None,
             template_id=template.id,
             group_id=data.get('group_id'),
             recipient_name=data['recipient_name'],
@@ -157,8 +185,18 @@ def create_certificate():
             verification_id=str(uuid.uuid4())
         )
         
-        user.cert_quota -= 1
+        quota_holder.cert_quota -= 1
         db.session.add(certificate)
+        db.session.flush()
+
+        # Log QuotaTransaction
+        txn = QuotaTransaction(
+            tenant_id=tenant_id if is_comp else None,
+            user_id=user_id,
+            certificate_id=certificate.id,
+            amount=-1
+        )
+        db.session.add(txn)
         db.session.commit()
 
         email_sent = False
@@ -209,7 +247,12 @@ def get_certificates():
     Lists all certificates for the current user.
     """
     user_id = int(get_jwt_identity())
-    certs = Certificate.query.filter_by(user_id=user_id).order_by(Certificate.created_at.desc()).all()
+    user = User.query.get(user_id)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        certs = Certificate.query.filter_by(tenant_id=tenant_id).order_by(Certificate.created_at.desc()).all()
+    else:
+        certs = Certificate.query.filter_by(user_id=user_id, tenant_id=None).order_by(Certificate.created_at.desc()).all()
 
     return jsonify([{
         'id': cert.id, 
@@ -234,8 +277,15 @@ def get_certificate(cert_id):
     """
     user_id = int(get_jwt_identity())
     certificate = Certificate.query.get_or_404(cert_id)
-    if certificate.user_id != user_id:
-        return jsonify({"msg": "Permission denied"}), 403
+    user = User.query.get(user_id)
+    
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        if certificate.tenant_id != tenant_id:
+            return jsonify({"msg": "Permission denied"}), 403
+    else:
+        if certificate.user_id != user_id or certificate.tenant_id is not None:
+            return jsonify({"msg": "Permission denied"}), 403
 
     template = Template.query.get_or_404(certificate.template_id)
     
@@ -277,9 +327,15 @@ def update_certificate(cert_id):
     """
     user_id = int(get_jwt_identity())
     cert = Certificate.query.get_or_404(cert_id)
+    user = User.query.get(user_id)
     
-    if cert.user_id != user_id:
-        return jsonify({"msg": "Unauthorized"}), 403
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        if cert.tenant_id != tenant_id:
+            return jsonify({"msg": "Permission denied"}), 403
+    else:
+        if cert.user_id != user_id or cert.tenant_id is not None:
+            return jsonify({"msg": "Permission denied"}), 403
         
     data = request.get_json()
     
@@ -317,9 +373,18 @@ def bulk_create_certificates():
     if not template_id or not group_id:
         return jsonify({"msg": "Template ID and Group ID are required"}), 400
 
+    is_comp, company_id, quota_holder, _ = get_active_context(user)
     template = Template.query.get(template_id)
-    if not template or (not template.is_public and template.user_id != user_id):
-        return jsonify({"msg": "Template not found or permission denied"}), 404
+    if not template:
+        return jsonify({"msg": "Template not found"}), 404
+        
+    if not template.is_public:
+        if is_comp:
+            if template.tenant_id != company_id:
+                return jsonify({"msg": "Permission denied"}), 403
+        else:
+            if template.user_id != user_id or template.tenant_id is not None:
+                return jsonify({"msg": "Permission denied"}), 403
 
     # Call the Bulk Service to handle parsing and processing in a BACKGROUND THREAD
     # We read the file stream into memory first to avoid file handle closure issues
@@ -330,7 +395,7 @@ def bulk_create_certificates():
         # We need to pass the app object for the thread to create an app_context
         app = current_app._get_current_object()
         
-        thread = threading.Thread(target=process_bulk_upload, args=(app, file_content, filename, template.id, group_id, user.id))
+        thread = threading.Thread(target=process_bulk_upload, args=(app, file_content, filename, template.id, group_id, user.id, is_comp, company_id))
         thread.start()
         
         return jsonify({"msg": "Processing started. You will be notified via email upon completion."}), 202
@@ -422,11 +487,11 @@ def send_bulk_emails():
             mail.send(msg)
             
             cert.sent_at = datetime.utcnow()
+            db.session.commit()  # Commit immediately to free transaction locks
             sent += 1
         except Exception as e: 
+            db.session.rollback()
             errors.append({"id": cert.id, "msg": str(e)})
-            
-    db.session.commit()
     
     # Notify Issuer about bulk send completion
     if sent > 0:
@@ -452,10 +517,10 @@ def verify_certificate(verification_id):
     template = Template.query.get_or_404(certificate.template_id)
 
     company_data = None
-    if certificate.company_id:
-        company = Company.query.get(certificate.company_id)
-        if company:
-            company_data = { "id": company.id, "name": company.name }
+    if certificate.tenant_id:
+        tenant = Tenant.query.get(certificate.tenant_id)
+        if tenant:
+            company_data = { "id": tenant.id, "name": tenant.name }
 
     certificate_data = {
         "id": certificate.id,
@@ -528,8 +593,8 @@ def advanced_search_certificates():
         sort_order = request.args.get('sort_order', 'desc')
 
         # Advanced Query Building
-        issuer_name_column = func.coalesce(Company.name, User.name).label('issuer_name')
-        issuer_type_column = case((Company.id != None, 'company'), else_='individual').label('issuer_type')
+        issuer_name_column = func.coalesce(Tenant.name, User.name).label('issuer_name')
+        issuer_type_column = case((Tenant.id != None, 'company'), else_='individual').label('issuer_type')
 
         base_query = db.session.query(
             Certificate.recipient_name,
@@ -539,7 +604,7 @@ def advanced_search_certificates():
             issuer_name_column,
             issuer_type_column
         ).join(User, Certificate.user_id == User.id) \
-         .join(Company, Certificate.company_id == Company.id, isouter=True)
+         .join(Tenant, Certificate.tenant_id == Tenant.id, isouter=True)
 
         if len(recipient_name) >= 3:
             base_query = base_query.filter(func.lower(Certificate.recipient_name).like(f"%{recipient_name.lower()}%"))
@@ -596,8 +661,15 @@ def delete_certificate(cert_id):
     """
     user_id = int(get_jwt_identity())
     certificate = Certificate.query.get_or_404(cert_id)
-    if certificate.user_id != user_id:
-        return jsonify({"msg": "Permission denied"}), 403
+    user = User.query.get(user_id)
+    
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        if certificate.tenant_id != tenant_id:
+            return jsonify({"msg": "Permission denied"}), 403
+    else:
+        if certificate.user_id != user_id or certificate.tenant_id is not None:
+            return jsonify({"msg": "Permission denied"}), 403
 
     try:
         db.session.delete(certificate)

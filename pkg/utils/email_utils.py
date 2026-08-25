@@ -285,3 +285,52 @@ def send_support_email(email, message):
         current_app.logger.info(f"Support email sent from {email}")
     except Exception as e:
         current_app.logger.error(f"Failed to send support email: {e}")
+
+def send_team_invitation_email(email, invite_url, company_name):
+    """
+    Sends a secure organization onboarding invitation email to a staff member.
+    """
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f4; }}
+            .container {{ max-width: 600px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; }}
+            .header {{ font-size: 24px; color: #333; text-align: center; padding: 10px; }}
+            .button {{ display: inline-block; padding: 12px 25px; margin: 20px 0; font-size: 16px; color: #fff; background-color: #4F46E5; text-decoration: none; border-radius: 5px; }}
+            .footer {{ font-size: 12px; text-align: center; color: #888; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">Join {company_name} on ProofDeck</div>
+            <div class="content">
+                <p>Hello,</p>
+                <p>You have been invited to join the <b>{company_name}</b> organization on ProofDeck as a staff member.</p>
+                <p>Click the button below to accept the invitation and set up your account:</p>
+                <p style="text-align: center;">
+                    <a href="{invite_url}" class="button" style="color: #ffffff;">Accept Invitation</a>
+                </p>
+                <p>If you already have a ProofDeck account under this email, you will be linked to the organization. Otherwise, you'll be prompted to set up your password and register.</p>
+                <p>This invitation link will expire in 48 hours.</p>
+            </div>
+            <div class="footer">
+                This is an automated message from ProofDeck.
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    msg = Message(
+        subject=f"Invitation to join {company_name} on ProofDeck",
+        sender=('ProofDeck Team', current_app.config.get('MAIL_USERNAME')),
+        recipients=[email],
+        html=html_body
+    )
+    try:
+        mail.send(msg)
+        current_app.logger.info(f"Team invitation email sent to: {email}")
+    except Exception as e:
+        current_app.logger.error(f"Failed to send team invitation email: {e}")
+        raise

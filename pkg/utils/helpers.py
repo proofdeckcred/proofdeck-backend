@@ -82,3 +82,25 @@ def normalize_headers(df):
                 break
     
     return df.rename(columns=new_columns)
+
+def get_active_context(user):
+    """
+    Returns (is_tenant_mode, tenant_id, quota_holder, active_role) based on the X-Workspace-Context header.
+    """
+    from flask import request
+    from ..models import Tenant, Membership
+    ws = request.headers.get('X-Workspace-Context', 'personal')
+    
+    try:
+        tenant_id = int(ws)
+    except ValueError:
+        tenant_id = None
+        
+    if tenant_id is not None:
+        membership = Membership.query.filter_by(user_id=user.id, tenant_id=tenant_id, status='active').first()
+        if membership:
+            active_tenant = Tenant.query.get(tenant_id)
+            if active_tenant:
+                return True, tenant_id, active_tenant, membership.role
+            
+    return False, None, user, None

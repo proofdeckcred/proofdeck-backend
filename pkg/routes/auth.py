@@ -3,7 +3,7 @@ from flask_jwt_extended import create_access_token, decode_token
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from bcrypt import hashpw, gensalt, checkpw
 from datetime import datetime, timedelta
-from ..models import User, Company, Referral
+from ..models import User, Tenant, Referral, Membership
 from ..extensions import db
 from ..utils.email_utils import send_password_reset_email, send_verification_email
 
@@ -72,10 +72,17 @@ def register():
     if account_type == 'company':
         try:
             db.session.flush()
-            new_company = Company(name=company_name, owner_id=new_user.id)
-            db.session.add(new_company)
+            new_tenant = Tenant(name=company_name, owner_id=new_user.id)
+            db.session.add(new_tenant)
             db.session.flush()
-            new_user.company_id = new_company.id
+            
+            new_membership = Membership(
+                user_id=new_user.id,
+                tenant_id=new_tenant.id,
+                role='owner',
+                status='active'
+            )
+            db.session.add(new_membership)
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Error during company registration setup: {e}")

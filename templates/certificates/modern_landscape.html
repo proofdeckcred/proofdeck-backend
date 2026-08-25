@@ -1,250 +1,147 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;800&display=swap');
-        
         @page {
-            size: A4 landscape;
+            size: 1122px 794px;
             margin: 0;
         }
-
-        * {
-            box-sizing: border-box;
-        }
-
         body {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
             margin: 0;
             padding: 0;
-            width: 297mm;
-            height: 210mm;
+            width: 1122px;
+            height: 794px;
             background-color: white;
-            font-family: 'Inter', sans-serif;
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            color: #1F2937;
         }
-
         .container {
-            /* h-full w-full bg-white relative p-8 flex flex-col justify-between shadow-lg */
-            width: 100%;
-            height: 100%;
-            padding: 2rem;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            background-color: var(--background-color, white);
+            width: 1122px;
+            height: 794px;
+            border: 4px solid {{ primary_color }};
+            box-sizing: border-box;
             position: relative;
-            
+            padding: 60px;
+            background-color: {{ background_style_map.get('background-color', 'white') }};
+            {% if background_base64 %}
+            background-image: url('data:image/png;base64,{{ background_base64 }}');
+            background-size: cover;
+            background-position: center;
+            {% endif %}
         }
-
-        .gradient-overlay {
-            /* absolute top-0 right-0 w-1/3 h-full bg-opacity-10 pointer-events-none */
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 33.333%;
-            height: 100%;
-            pointer-events: none;
-            background: var(--background, none);
-        }
-
-        .header {
-            /* flex justify-between items-center z-10 */
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: relative;
-            z-index: 10;
-        }
-
         .logo {
-            /* h-12 object-contain */
-            height: 3rem;
+            height: 80px;
+            margin-bottom: 40px;
             object-fit: contain;
         }
-
-        .header-right {
+        .title {
+            font-size: 32px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            color: {{ primary_color }};
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-weight: 300;
+        }
+        .recipient {
+            font-size: 56px;
+            font-weight: 800;
+            color: #111827;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .body-text {
+            font-size: 18px;
+            color: #6B7280;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        .course {
+            font-size: 30px;
+            font-weight: bold;
+            color: {{ secondary_color }};
+            margin-top: 0;
+            margin-bottom: 40px;
+        }
+        .footer {
+            position: absolute;
+            bottom: 60px;
+            left: 60px;
+            width: 1002px;
+            border-top: 1px solid #E5E7EB;
+            padding-top: 20px;
+        }
+        .footer-left {
+            float: left;
+            width: 300px;
+        }
+        .footer-right {
+            float: right;
+            width: 250px;
             text-align: right;
         }
-        
-        .header-title {
-            /* text-xs uppercase tracking-widest font-semibold text-gray-400 */
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            font-weight: 600;
-            color: #9ca3af;
+        .signature-img {
+            height: 48px;
+            width: auto;
+            object-fit: contain;
+            display: block;
+            margin-left: auto;
+            margin-bottom: 5px;
+        }
+        .signature-text {
+            font-family: 'Great Vibes', cursive, serif;
+            font-size: 26px;
             margin: 0;
+            margin-bottom: 5px;
         }
-
-        .header-date {
-            /* font-bold text-sm */
-            font-weight: 700;
-            font-size: 0.875rem;
-            color: var(--color, #000);
-            margin: 0;
-        }
-
-        .main {
-            /* flex-grow flex flex-col justify-center max-w-2xl z-10 */
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            max-width: 42rem; /* max-w-2xl */
-            position: relative;
-            z-index: 10;
-        }
-
-        .pro-title {
-            /* text-4xl font-light mb-2 text-gray-900 */
-            font-size: 2.25rem;
-            font-weight: 300;
-            margin-bottom: 0.5rem;
-            margin-top: 0;
-            color: #111827;
-        }
-        
-        .pro-title span {
-            color: var(--color, inherit);
-        }
-
-        .subtitle {
-            /* text-lg text-gray-500 mb-6 */
-            font-size: 1.125rem;
-            color: #6b7280;
-            margin-bottom: 1.5rem;
-            margin-top: 0;
-        }
-
-        .recipient {
-            /* text-5xl font-extrabold mb-6 tracking-tight text-gray-900 */
-            font-size: 3rem;
-            font-weight: 800;
-            margin-bottom: 1.5rem;
-            margin-top: 0;
-            letter-spacing: -0.025em;
-            color: var(--color, #111827);
-            font-family: var(--font-family, inherit);
-            font-size: var(--font-size, 3rem);
-            font-weight: var(--font-weight, 800);
-        }
-
-        .divider {
-            /* h-1 w-20 mb-6 */
-            height: 0.25rem;
-            width: 5rem;
-            margin-bottom: 1.5rem;
-            background-color: var(--secondary-color, #000);
-        }
-
-        .body-text {
-            /* text-lg text-gray-600 */
-            font-size: 1.125rem;
-            color: #4b5563;
-            margin: 0;
-        }
-
-        .footer {
-            /* flex items-end justify-between z-10 */
-            display: flex;
-            align-items: flex-end;
-            justify-content: space-between;
-            position: relative;
-            z-index: 10;
-        }
-
-        .footer-left {
-            /* text-xs text-gray-400 */
-            font-size: 0.75rem;
-            color: #9ca3af;
-        }
-        
-        .footer-left p { margin: 0; }
-
-        .footer-right {
-            text-align: center;
-        }
-
-        .signature {
-            /* w-32 border-b border-gray-300 mb-1 font-signature text-xl */
-            width: 8rem;
-            border-bottom: 1px solid #d1d5db;
-            margin-bottom: 0.25rem;
-            font-size: 1.25rem;
-            /* font-signature usually implies a script font */
-            font-family: 'Great Vibes', cursive, serif; 
-        }
-
         .signature-label {
-             /* text-xs font-bold uppercase text-gray-500 */
-             font-size: 0.75rem;
-             font-weight: 700;
-             text-transform: uppercase;
-             color: #6b7280;
-             margin: 0;
-        }</style>
+            font-size: 12px;
+            color: #9CA3AF;
+            margin: 0;
+        }
+        .footer-sub {
+            color: #9CA3AF;
+            font-size: 12px;
+            margin: 0;
+        }
+        .qr-code {
+            width: 80px;
+            height: 80px;
+        }
+    </style>
 </head>
 <body>
-    <div class="container" style="--primary-color: {{ primary_color }}; --secondary-color: {{ secondary_color }}; --background-color: {{ background_style_map.get('background-color', 'white') }}; {% if background_base64 %} background-image: url('data:image/png; base64,{{ background_base64 }}'); background-size: cover; background-position: center; {% endif %}">
-        <div class="gradient-overlay" style="--primary-color-alpha: {{ primary_color_alpha }}; --background: linear-gradient(225deg, {{ primary_color_alpha }} 0%, transparent 100%);"></div>
+    <div class="container">
+        {% if logo_base64 %}
+        <img src="data:image/png;base64,{{ logo_base64 }}" class="logo">
+        {% endif %}
         
-        <div class="header">
-            {% if logo_base64 %}
-                <img src="data:image/png;base64,{{ logo_base64 }}" class="logo">
-            {% else %}
-                <div></div>
-            {% endif %}
-            
-            <div class="header-right">
-                <p class="header-title">{{ custom_text.get('title', 'Certificate of Completion') }}</p>
-                <p class="header-date" style="--color: {{ primary_color }}">{{ custom_text.get('date_prefix', 'Date:') }} {{ issue_date }}</p>
-            </div>
-        </div>
-
-        <div class="main">
-            <h1 class="pro-title">
-                <span style="font-weight: 700; --color: {{ primary_color }};">PRO</span> CERTIFIED
-            </h1>
-            <p class="subtitle">{{ custom_text.get('subtitle', 'This document verifies that') }}</p>
-            
-            <h2 class="recipient" style="--color: {{ text_style_map.get('color', 'inherit') }}; --font-family: {{ text_style_map.get('font-family', 'inherit') }}; --font-size: {{ text_style_map.get('font-size', 'inherit') }}; --font-weight: {{ text_style_map.get('font-weight', 'inherit') }};">{{ recipient_name }}</h2>
-            
-            <div class="divider" style="--secondary-color: {{ secondary_color }}"></div>
-            
-            <p class="body-text" style="margin-bottom: 2rem;">
-                {{ custom_text.get('body', 'has successfully completed the course') }} 
-                <span style="font-weight: 700; color: #111827;">{{ course_title }}</span>
-            </p>
-
-            {% if extra_fields %}
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; width: 100%; margin-bottom: 2rem;">
-                {% for key, value in extra_fields.items() %}
-                    {% if key != 'amount' %}
-                    <div style="text-align: left;">
-                        <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #9ca3af; display: block;">{{ key }}</span>
-                        <span style="font-size: 1rem; font-weight: 600; color: #1f2937;">{{ value }}</span>
-                    </div>
-                    {% endif %}
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-
+        <h1 class="title">{{ custom_text.get('title', 'CERTIFICATE OF ACHIEVEMENT') }}</h1>
+        <h2 class="recipient">{{ recipient_name }}</h2>
+        
+        <p class="body-text">{{ custom_text.get('body', 'has successfully completed') }}</p>
+        <p class="course">{{ course_title }}</p>
+        
         <div class="footer">
             <div class="footer-left">
-                <p>ID: {{ verification_id if verification_id else '123456' }}</p>
-                <p>{{ custom_text.get('footer_msg', 'Verified Securely') }}</p>
+                <p style="margin: 0; font-weight: bold;">ID: {{ verification_id if verification_id else '123456' }}</p>
+                <p class="footer-sub">{{ custom_text.get('footer_msg', 'Verified Securely') }}</p>
+            </div>
+            
+            <div style="position: absolute; left: 461px; bottom: 0px;">
+                <img src="data:image/png;base64,{{ qr_base64 }}" class="qr-code">
             </div>
             
             <div class="footer-right">
-                <div class="signature">{{ signature if signature else 'Signature' }}</div>
+                {% if signature_image_base64 %}
+                    <img src="data:image/png;base64,{{ signature_image_base64 }}" class="signature-img" alt="Signature">
+                {% else %}
+                    <p class="signature-text">{{ signature if signature else 'Signature' }}</p>
+                {% endif %}
                 <p class="signature-label">{{ custom_text.get('signature_label', 'Authorized Signature') }}</p>
             </div>
         </div>
     </div>
 </body>
 </html>
-
-

@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from ..models import db, Group, Certificate, Template
+from ..models import db, Group, Certificate, Template, User
+from ..utils.helpers import get_active_context
 from ..extensions import mail
 from datetime import datetime
 from io import BytesIO
@@ -17,10 +18,12 @@ groups_bp = Blueprint('groups', __name__)
 @jwt_required()
 def create_group():
     user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
     data = request.get_json()
     name = data.get('name')
     if not name: return jsonify({"msg": "Group name is required"}), 400
-    new_group = Group(user_id=user_id, name=name)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    new_group = Group(user_id=user_id, tenant_id=tenant_id if is_comp else None, name=name)
     db.session.add(new_group)
     db.session.commit()
     return jsonify({"msg": "Group created successfully", "group": { "id": new_group.id, "name": new_group.name, "certificate_count": 0 }}), 201
@@ -29,9 +32,16 @@ def create_group():
 @jwt_required()
 def get_groups():
     user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
-    pagination = Group.query.filter_by(user_id=user_id).order_by(Group.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        pagination = Group.query.filter_by(tenant_id=tenant_id).order_by(Group.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    else:
+        pagination = Group.query.filter_by(user_id=user_id, tenant_id=None).order_by(Group.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        
     groups_data = [{"id": group.id, "name": group.name, "certificate_count": len(group.certificates), "created_at": group.created_at.isoformat()} for group in pagination.items]
     return jsonify({"groups": groups_data, "total": pagination.total, "pages": pagination.pages, "current_page": pagination.page}), 200
 
@@ -39,7 +49,13 @@ def get_groups():
 @jwt_required()
 def get_group_details(group_id):
     user_id = int(get_jwt_identity())
-    group = Group.query.filter_by(id=group_id, user_id=user_id).first_or_404()
+    user = User.query.get(user_id)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
+    else:
+        group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
+        
     certificates_data = [{'id': c.id, 'recipient_name': c.recipient_name, 'recipient_email': c.recipient_email, 'course_title': c.course_title, 'issue_date': c.issue_date.isoformat(), 'sent_at': c.sent_at.isoformat() if c.sent_at else None} for c in group.certificates]
     return jsonify({"id": group.id, "name": group.name, "certificates": certificates_data}), 200
 
@@ -47,8 +63,15 @@ def get_group_details(group_id):
 @jwt_required()
 def delete_group(group_id):
     user_id = int(get_jwt_identity())
-    group = Group.query.filter_by(id=group_id, user_id=user_id).first_or_404()
-    Certificate.query.filter_by(group_id=group.id, user_id=user_id).delete()
+    user = User.query.get(user_id)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
+        Certificate.query.filter_by(group_id=group.id, tenant_id=tenant_id).delete()
+    else:
+        group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
+        Certificate.query.filter_by(group_id=group.id, user_id=user_id, tenant_id=None).delete()
+        
     db.session.delete(group)
     db.session.commit()
     return jsonify({"msg": "Group and all associated certificates deleted successfully"}), 200
@@ -57,7 +80,12 @@ def delete_group(group_id):
 @jwt_required()
 def send_bulk_email_for_group(group_id):
     user_id = int(get_jwt_identity())
-    group = Group.query.filter_by(id=group_id, user_id=user_id).first_or_404()
+    user = User.query.get(user_id)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
+    else:
+        group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
 
     certificates_to_send = [cert for cert in group.certificates if not cert.sent_at]
     if not certificates_to_send:
@@ -82,14 +110,14 @@ def send_bulk_email_for_group(group_id):
             mail.send(msg)
             
             certificate.sent_at = datetime.utcnow()
+            db.session.commit()  # Commit immediately to free transaction locks
             sent_certs.append(certificate.id)
             
         except Exception as e:
+            db.session.rollback()
             current_app.logger.error(f"Failed to send email for cert {certificate.id}: {e}")
             errors.append({"certificate_id": certificate.id, "msg": str(e)})
 
-    db.session.commit()
-    
     if errors:
         return jsonify({"msg": f"Processed with errors. Sent: {len(sent_certs)}", "sent": sent_certs, "errors": errors}), 207
     return jsonify({"msg": f"Successfully sent {len(sent_certs)} emails"}), 200
@@ -98,17 +126,55 @@ def send_bulk_email_for_group(group_id):
 @jwt_required()
 def download_bulk_pdf_for_group(group_id):
     user_id = int(get_jwt_identity())
-    group = Group.query.filter_by(id=group_id, user_id=user_id).first_or_404()
+    user = User.query.get(user_id)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
+    else:
+        group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
 
     if not group.certificates:
         return jsonify({"msg": "This group contains no certificates to download."}), 404
 
+    # Pre-fetch all certificates, templates, and user attributes upfront
+    user = group.user
+    # Touch user attributes
+    _ = user.signature_image_url
+    _ = user.name
+
+    certs_with_templates = []
+    for certificate in group.certificates:
+        template = Template.query.get(certificate.template_id)
+        # Touch attributes to load them into session memory
+        _ = template.layout_style
+        _ = template.logo_url
+        _ = template.background_url
+        _ = template.primary_color
+        _ = template.secondary_color
+        _ = template.body_font_color
+        _ = template.font_family
+        _ = template.custom_text
+        
+        _ = certificate.recipient_name
+        _ = certificate.recipient_email
+        _ = certificate.course_title
+        _ = certificate.issue_date
+        _ = certificate.signature
+        _ = certificate.issuer_name
+        _ = certificate.verification_id
+        _ = certificate.extra_fields
+        
+        certs_with_templates.append((certificate, template))
+
+    # Release DB connection early before long-running rendering block
+    db.session.rollback()
+    db.session.remove()
+
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        for certificate in group.certificates:
+        for certificate, template in certs_with_templates:
             try:
-                template = Template.query.get(certificate.template_id)
-                pdf_buffer = generate_certificate_pdf(certificate, template, group.user)
+                pdf_buffer = generate_certificate_pdf(certificate, template, user)
                 
                 # Sanitize recipient name for the filename
                 sane_name = re.sub(r'[\W_]+', '_', certificate.recipient_name)
@@ -118,14 +184,15 @@ def download_bulk_pdf_for_group(group_id):
                 current_app.logger.error(f"Skipping PDF for cert {certificate.id} due to error: {e}")
                 zip_file.writestr(f"ERROR_cert_{certificate.id}.txt", f"Could not generate PDF. Error: {e}")
 
-    zip_buffer.seek(0)
+    # Return raw buffer values directly instead of a streaming handler
+    zip_data = zip_buffer.getvalue()
     
     # Sanitize group name for the zip filename
     sane_group_name = re.sub(r'[\W_]+', '_', group.name)
     zip_filename = f"{sane_group_name}_certificates.zip"
 
     return Response(
-        zip_buffer,
+        zip_data,
         mimetype='application/zip',
         headers={'Content-Disposition': f'attachment; filename={zip_filename}'}
     )

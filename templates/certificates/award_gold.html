@@ -1,241 +1,137 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Great+Vibes&family=Montserrat:wght@400;700&display=swap');
-        
         @page {
-            size: A4 landscape;
+            size: 1122px 794px;
             margin: 0;
         }
-
-        * {
-            box-sizing: border-box;
-        }
-
         body {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
             margin: 0;
             padding: 0;
-            width: 297mm;
-            height: 210mm;
-            /* bg-white */
+            width: 1122px;
+            height: 794px;
             background-color: white;
-            /* flex flex-col items-center justify-center p-8 text-center */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem; /* p-8 is 2rem */
-            text-align: center;
-            /* font-family default */
-            font-family: 'Montserrat', sans-serif; 
+            font-family: 'Georgia', 'Times New Roman', serif;
+            color: #1F2937;
         }
-
         .container {
-            /* h-full w-full relative border-[24px] border-[#c0a062] shadow-lg */
-            width: 100%;
-            height: 100%;
+            width: 1122px;
+            height: 794px;
+            border: 20px solid #D4AF37; /* Gold */
+            outline: 4px solid #D4AF37;
+            outline-offset: -12px;
+            box-sizing: border-box;
             position: relative;
-            border: 24px solid var(--primary-color, #c0a062);
-            /* radial-gradient & backgroundStyle from props */
-            background-color: var(--background-color, white);
-            background-size: cover;
-            background-position: center;
-            
-            /* background-image: radial-gradient(circle, #fffff0 0%, #ffffff 100%);  -- User might overwrite this via style map */
-            
-            /* background_style moved inline */
-            
-            /* flex flex-col items-center justify-center */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* absolute inset-2 border border-[#c0a062] opacity-50 pointer-events-none */
-        .inner-border-1 {
-            position: absolute;
-            top: 0.5rem; right: 0.5rem; bottom: 0.5rem; left: 0.5rem;
-            border: 1px solid var(--primary-color, #c0a062);
-            opacity: 0.5;
-            pointer-events: none;
-        }
-
-        /* absolute inset-4 border border-[#c0a062] opacity-30 pointer-events-none */
-        .inner-border-2 {
-            position: absolute;
-            top: 1rem; right: 1rem; bottom: 1rem; left: 1rem;
-            border: 1px solid var(--primary-color, #c0a062);
-            opacity: 0.3;
-            pointer-events: none;
-        }
-
-        /* w-16 h-16 mb-4 text-[#c0a062] */
-        .icon {
-            width: 4rem;
-            height: 4rem;
-            margin-bottom: 1rem;
-            color: var(--primary-color, #c0a062);
-        }
-
-        /* text-4xl font-serif uppercase text-[#c0a062] mb-2 tracking-widest */
-        .title {
-            font-size: 2.25rem; /* text-4xl */
-            font-family: 'Playfair Display', serif;
-            text-transform: uppercase;
-            color: var(--primary-color, #c0a062);
-            margin-bottom: 0.5rem; /* mb-2 */
-            letter-spacing: 0.1em; /* tracking-widest */
-            margin-top: 0;
-            line-height: 1;
-        }
-
-        /* text-gray-400 text-xs uppercase tracking-[0.4em] mb-8 */
-        .subtitle {
-            color: #9ca3af; /* text-gray-400 */
-            font-size: 0.75rem; /* text-xs */
-            text-transform: uppercase;
-            letter-spacing: 0.4em;
-            margin-bottom: 2rem; /* mb-8 */
-            margin-top: 0;
-        }
-
-        /* font-serif italic text-lg text-gray-500 mb-2 */
-        .certify-text {
-            font-family: 'Playfair Display', serif;
-            font-style: italic;
-            font-size: 1.125rem; /* text-lg */
-            color: #6b7280; /* text-gray-500 */
-            margin-bottom: 0.5rem; /* mb-2 */
-            margin-top: 0;
-        }
-
-        /* text-5xl font-script text-black mb-6 */
-        .recipient {
-            font-size: 3rem; /* text-5xl */
-            font-family: 'Great Vibes', cursive; /* font-script fallback */
-            color: var(--color, black);
-            font-family: var(--font-family, 'Great Vibes', cursive);
-            font-size: var(--font-size, 3rem);
-            font-weight: var(--font-weight, 400);
-            margin-bottom: 1.5rem; /* mb-6 */
-            margin-top: 0;
-            line-height: 1;
-            /* text_style applied inline */
-        }
-
-        /* max-w-md mx-auto text-gray-600 mb-8 font-serif */
-        .body-text {
-            max-width: 28rem; /* max-w-md */
-            margin-left: auto;
-            margin-right: auto;
-            color: #4b5563; /* text-gray-600 */
-            margin-bottom: 2rem; /* mb-8 */
-            font-family: 'Playfair Display', serif;
-            font-size: 1rem;
-            margin-top: 0;
-        }
-
-        /* block font-bold text-xl mt-2 text-black */
-        .course-title {
-            display: block;
-            font-weight: 700;
-            font-size: 1.25rem; /* text-xl */
-            margin-top: 0.5rem; /* mt-2 */
-            color: black;
-        }
-
-        /* w-full max-w-lg flex justify-between px-8 pt-6 border-t border-[#c0a062]/30 */
-        .footer {
-            width: 100%;
-            max-width: 32rem; /* max-w-lg */
-            display: flex;
-            justify-content: space-between;
-            padding-left: 2rem; /* px-8 */
-            padding-right: 2rem;
-            padding-top: 1.5rem; /* pt-6 */
-            border-top: 1px solid rgba(192, 160, 98, 0.3); /* This color is difficult to var() easily without rgba-conversion, leaving as is or using text-gray-300 fallback */
-            margin-top: auto; /* Push to bottom if needed, but flex centered in container */
-        }
-
-        .footer-item {
+            padding: 60px;
             text-align: center;
         }
-
-        /* text-sm font-bold text-gray-800 */
-        .footer-label {
-            font-size: 0.875rem; /* text-sm */
-            font-weight: 700;
-            color: #1f2937; /* text-gray-800 */
+        .logo {
+            height: 80px;
+            margin-top: 10px;
+            margin-bottom: 20px;
+            object-fit: contain;
+        }
+        .title {
+            font-size: 38px;
+            font-weight: bold;
+            color: #D4AF37;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .recipient {
+            font-size: 52px;
+            font-weight: 800;
+            color: #111827;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .body-text {
+            font-style: italic;
+            font-size: 18px;
+            color: #4B5563;
+            margin-bottom: 20px;
+        }
+        .course {
+            font-size: 28px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 30px;
+        }
+        .footer {
+            position: absolute;
+            bottom: 60px;
+            left: 80px;
+            width: 962px;
+        }
+        .footer-left {
+            float: left;
+            width: 250px;
+            text-align: center;
+        }
+        .footer-right {
+            float: right;
+            width: 250px;
+            text-align: center;
+        }
+        .line {
+            border-top: 2px solid #D4AF37;
+            width: 200px;
+            margin: 0 auto 10px auto;
+        }
+        .footer-bold {
+            font-weight: bold;
+            font-size: 16px;
             margin: 0;
         }
-
-        /* text-xs text-gray-500 */
-        .footer-date {
-            font-size: 0.75rem; /* text-xs */
-            color: #6b7280; /* text-gray-500 */
+        .footer-sub {
+            color: #6B7280;
+            font-size: 12px;
             margin: 0;
-            margin-top: 0.25rem;
         }
-
-        /* font-script text-gray-500 */
-        .footer-signature {
-            font-family: 'Great Vibes', cursive; /* font-script fallback */
-            color: #6b7280; /* text-gray-500 */
-            font-size: 1.25rem;
-            margin: 0;
-            margin-top: 0.25rem;
-        }</style>
+        .qr-code {
+            width: 80px;
+            height: 80px;
+        }
+    </style>
 </head>
 <body>
-    <div class="container" style="--primary-color: {{ primary_color }}; --background-color: {{ background_style_map.get('background-color', 'transparent') }}; {% if background_base64 %} background-image: url('data:image/png; base64,{{ background_base64 }}'); {% else %} background-image: {{ background_style_map.get('background-image', 'radial-gradient(circle, #fffff0 0%, #ffffff 100%)') }}; {% endif %} background-size: cover; background-position: center; --border: {{ background_style_map.get('border', 'none') }};">
-        <div class="inner-border-1"></div>
-        <div class="inner-border-2"></div>
-
-        <div class="icon">
-            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6-4.8-6 4.8 2.4-7.2-6-4.8h7.6z"/></svg>
-        </div>
-
-        <h1 class="title">{{ custom_text.get('title', 'Achievement Award') }}</h1>
-        <p class="subtitle">{{ custom_text.get('subtitle', 'Highest Honor') }}</p>
-
-        <p class="certify-text">{{ custom_text.get('presented_to', 'This certifies that') }}</p>
-        <h2 class="recipient" style="--color: {{ text_style_map.get('color', 'inherit') }}; --font-family: {{ text_style_map.get('font-family', 'inherit') }}; --font-size: {{ text_style_map.get('font-size', 'inherit') }}; --font-weight: {{ text_style_map.get('font-weight', 'inherit') }};">{{ recipient_name }}</h2>
-
-        <div class="body-text">
-            {{ custom_text.get('body', 'Has successfully met all the criteria required for the completion of') }}
-            <span class="course-title">{{ course_title }}</span>
-        </div>
-
-        {% if extra_fields %}
-        <div style="margin-bottom: 2rem; width: 100%; max-width: 28rem; padding-left: 3rem; padding-right: 3rem;">
-             {% for key, value in extra_fields.items() %}
-                {% if key != 'amount' %}
-                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(192, 160, 98, 0.3); padding-bottom: 0.25rem; margin-bottom: 0.5rem; font-size: 0.875rem;">
-                    <span style="font-family: serif; font-style: italic; color: #6b7280;">{{ key }}</span>
-                    <span style="font-weight: 700; color: #1f2937;">{{ value }}</span>
-                </div>
-                {% endif %}
-            {% endfor %}
-        </div>
+    <div class="container">
+        {% if logo_base64 %}
+        <img src="data:image/png;base64,{{ logo_base64 }}" class="logo">
         {% endif %}
-
+        
+        <h1 class="title">{{ custom_text.get('title', 'Honorary Award of Excellence') }}</h1>
+        
+        <h2 class="recipient">{{ recipient_name }}</h2>
+        
+        <p class="body-text">{{ custom_text.get('body', 'is hereby presented this honor for exceptional merit in') }}</p>
+        <p class="course">{{ course_title }}</p>
+        
         <div class="footer">
-            <div class="footer-item">
-                <p class="footer-label">{{ custom_text.get('date_label', 'Date') }}</p>
-                <p class="footer-date">{{ issue_date }}</p>
+            <div class="footer-left">
+                {% if signature_image_base64 %}
+                    <img src="data:image/png;base64,{{ signature_image_base64 }}" style="height: 48px; display: block; margin: 0 auto 5px auto;" alt="Signature">
+                {% else %}
+                    <p class="footer-bold">{{ signature if signature else 'Authorized' }}</p>
+                {% endif %}
+                <div class="line"></div>
+                <p class="footer-sub">{{ custom_text.get('signature_label', 'Signature') }}</p>
             </div>
-            <div class="footer-item">
-                <p class="footer-label">{{ custom_text.get('signature_label', 'Signature') }}</p>
-                <p class="footer-signature">{{ signature if signature else 'Authorized' }}</p>
+            
+            <div style="display: inline-block; margin-top: 10px;">
+                <img src="data:image/png;base64,{{ qr_base64 }}" class="qr-code">
+            </div>
+            
+            <div class="footer-right">
+                <p class="footer-bold">{{ verification_id if verification_id else 'PENDING' }}</p>
+                <div class="line"></div>
+                <p class="footer-sub">Verification ID</p>
             </div>
         </div>
     </div>
 </body>
 </html>
-
-
