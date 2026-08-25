@@ -49,7 +49,7 @@ def create_app():
     app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
     app.config['ADMIN_EMAIL'] = os.environ.get('ADMIN_EMAIL')
 
-    upload_path = os.path.abspath(os.path.join(app.root_path, '..', '..', 'Uploads'))
+    upload_path = os.environ.get('UPLOAD_FOLDER') or os.path.abspath(os.path.join(app.root_path, '..', 'uploads'))
     os.makedirs(upload_path, exist_ok=True)
     app.config['UPLOAD_FOLDER'] = upload_path
     
