@@ -14,10 +14,10 @@ payments_bp = Blueprint('payments', __name__)
 PAYSTACK_API_URL = "https://api.paystack.co"
 
 PLANS = {
-    "starter": {"amount_usd": 15.00, "certificates": 500, "role": "starter"},
-    "growth": {"amount_usd": 50.00, "certificates": 2000, "role": "growth"},
-    "pro": {"amount_usd": 100.00, "certificates": 5000, "role": "pro"},
-    "enterprise": {"amount_usd": 300.00, "certificates": 20000, "role": "enterprise"}
+    "starter": {"amount_ngn": 25000, "amount_usd": 18.00, "certificates": 500, "role": "starter"},
+    "growth": {"amount_ngn": 60000, "amount_usd": 42.00, "certificates": 2000, "role": "growth"},
+    "pro": {"amount_ngn": 100000, "amount_usd": 70.00, "certificates": 5000, "role": "pro"},
+    "enterprise": {"amount_ngn": 300000, "amount_usd": 200.00, "certificates": 20000, "role": "enterprise"}
 }
 
 role_order = {
@@ -52,17 +52,17 @@ def initialize_payment():
     
     plan_details = PLANS[plan]
     
-    amount_in_usd = plan_details['amount_usd']
     paystack_key = current_app.config.get('PAYSTACK_SECRET_KEY', '')
     is_ngn_account = paystack_key.startswith('sk_test_') or paystack_key.startswith('sk_live_')
 
     if is_ngn_account:
-        exchange_rate = get_usd_to_ngn_rate()
-        amount_to_charge = int(amount_in_usd * exchange_rate * 100)
+        amount_to_charge = int(plan_details['amount_ngn'] * 100) # In Kobo
         currency_to_charge = "NGN"
+        amount_in_usd = plan_details['amount_usd']
     else:
-        amount_to_charge = int(amount_in_usd * 100)
+        amount_to_charge = int(plan_details['amount_usd'] * 100) # In Cents
         currency_to_charge = "USD"
+        amount_in_usd = plan_details['amount_usd']
     
     unique_suffix = f"{int(datetime.utcnow().timestamp())}_{uuid.uuid4().hex[:6]}"
     transaction_ref = f"PD_{user_id}_{plan}_{unique_suffix}"
