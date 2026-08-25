@@ -36,10 +36,11 @@ def create_app():
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_recycle": 280, "pool_pre_ping": True}
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    app.config['FRONTEND_URL'] = os.environ.get('FRONTEND_URL')
-    app.config['PAYSTACK_SECRET_KEY'] = os.environ.get('PAYSTACK_SECRET_KEY')
-    app.config['BACHS_SECRET_KEY'] = os.environ.get('BACHS_SECRET_KEY')
-    app.config['BACHS_WEBHOOK_SECRET'] = os.environ.get('BACHS_WEBHOOK_SECRET')
+    app.config['FRONTEND_URL'] = os.environ.get('FRONTEND_URL', 'https://proofdeck.app')
+    app.config['PAYSTACK_SECRET_KEY'] = os.environ.get('PAYSTACK_SECRET_KEY', 'sk_test_bc2b10958c6b2ece0cab41fe4a9ebb56fff3d84f')
+    app.config['PAYSTACK_PUBLIC_KEY'] = os.environ.get('PAYSTACK_PUBLIC_KEY', 'pk_test_e0d4baa25d66a069e4a300836f2f8fd04691b400')
+    app.config['BACHS_SECRET_KEY'] = os.environ.get('BACHS_SECRET_KEY', 'sk_live_37743ffb_fY4qDHoKv5LUe0IEfYkZJ_o4vDbdwqvaFg9Y8QNDeqM')
+    app.config['BACHS_WEBHOOK_SECRET'] = os.environ.get('BACHS_WEBHOOK_SECRET', '')
     
     app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
     app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))

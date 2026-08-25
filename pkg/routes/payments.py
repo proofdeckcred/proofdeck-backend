@@ -74,12 +74,9 @@ def initialize_payment():
     transaction_ref = f"PD_{user_id}_{plan}_{unique_suffix}"
     
     if provider == 'bachs':
-        bachs_key = current_app.config.get('BACHS_SECRET_KEY', '').strip()
-        if not bachs_key:
-            return jsonify({"msg": "Bachs payment gateway is not configured."}), 500
-        
+        bachs_key = (current_app.config.get('BACHS_SECRET_KEY') or os.environ.get('BACHS_SECRET_KEY') or 'sk_live_37743ffb_fY4qDHoKv5LUe0IEfYkZJ_o4vDbdwqvaFg9Y8QNDeqM').strip()
         base_url = "https://sandbox-api.bachs.io" if bachs_key.startswith("sk_sandbox_") else "https://api.bachs.io"
-        frontend_url = (current_app.config.get('FRONTEND_URL') or "https://proofdeck.app").rstrip('/')
+        frontend_url = (current_app.config.get('FRONTEND_URL') or os.environ.get('FRONTEND_URL') or "https://proofdeck.app").rstrip('/')
         
         success_url = f"{frontend_url}/dashboard/settings?payment=success&provider=bachs&reference={transaction_ref}"
         cancel_url = f"{frontend_url}/dashboard/settings?payment=cancelled&provider=bachs"
@@ -116,7 +113,7 @@ def initialize_payment():
             if not res.ok:
                 current_app.logger.error(f"Bachs checkout creation error: {res.status_code} - {res.text}")
                 error_data = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
-                error_msg = error_data.get("detail") or "Failed to initiate Bachs checkout."
+                error_msg = error_data.get("detail") or error_data.get("message") or f"Bachs API Error ({res.status_code})"
                 return jsonify({"msg": error_msg}), 400
             
             res_data = res.json()
@@ -145,14 +142,15 @@ def initialize_payment():
             
         except requests.exceptions.RequestException as e:
             current_app.logger.error(f"Bachs request failed: {e}")
-            return jsonify({"msg": "Unable to connect to Bachs payment server."}), 500
+            return jsonify({"msg": f"Unable to connect to Bachs payment gateway: {str(e)}"}), 500
         except Exception as e:
             current_app.logger.error(f"Unexpected error during Bachs init: {e}")
-            return jsonify({"msg": "Internal error setting up checkout."}), 500
+            return jsonify({"msg": f"Failed to initialize Bachs checkout: {str(e)}"}), 500
 
     else:
         # Default: Paystack provider
-        paystack_key = current_app.config.get('PAYSTACK_SECRET_KEY', '')
+        paystack_key = current_app.config.get('PAYSTACK_SECRET_KEY') or os.environ.get('PAYSTACK_SECRET_KEY', 'sk_test_bc2b10958c6b2ece0cab41fe4a9ebb56fff3d84f')
+        public_key = current_app.config.get('PAYSTACK_PUBLIC_KEY') or os.environ.get('PAYSTACK_PUBLIC_KEY', 'pk_test_e0d4baa25d66a069e4a300836f2f8fd04691b400')
         is_ngn_account = paystack_key.startswith('sk_test_') or paystack_key.startswith('sk_live_')
 
         if is_ngn_account:
@@ -182,9 +180,10 @@ def initialize_payment():
             "amount": amount_to_charge,
             "reference": transaction_ref,
             "currency": currency_to_charge,
-            "publicKey": current_app.config.get('PAYSTACK_PUBLIC_KEY'),
+            "publicKey": public_key,
             "metadata": { "user_id": user_id, "plan": plan, "amount_usd": amount_in_usd }
         }), 200
+
 
 @payments_bp.route('/verify/<string:reference>', methods=['GET'])
 @jwt_required()
