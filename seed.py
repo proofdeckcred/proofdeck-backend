@@ -1,6 +1,9 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from pkg import create_app
 from pkg.extensions import db
-from pkg.models import User, Template, Company, Certificate, Payment
+from pkg.models import User, Template, Tenant, Certificate, Payment, Admin
 from bcrypt import hashpw, gensalt
 from datetime import datetime, timedelta
 import random
@@ -11,9 +14,26 @@ def seed_data():
     with app.app_context():
         print("Starting Database Seeder...")
 
+        # 0. Create a Test Admin
+        admin_email = "admin@certifyme.io"
+        admin = Admin.query.filter_by(email=admin_email).first()
+        if not admin:
+            hashed_password = hashpw("password123".encode('utf-8'), gensalt())
+            admin = Admin(
+                name="Test Admin",
+                email=admin_email,
+                password_hash=hashed_password.decode('utf-8'),
+                role='super_admin',
+                is_verified=True
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print(f"Admin created: {admin_email}")
+
         # 1. Create a Test User
         test_email = "test@certifyme.io"
         user = User.query.filter_by(email=test_email).first()
+
         if not user:
             hashed_password = hashpw("password123".encode('utf-8'), gensalt())
             user = User(
@@ -91,6 +111,24 @@ def seed_data():
         else:
             # If it exists, ensure its style is correct
             receipt_template.layout_style = 'receipt'
+            
+        # Gala Invitation - Ensure layout_style is explicitly set
+        invitation_template = Template.query.filter_by(title='Gala Invitation').first()
+        if not invitation_template:
+            t4 = Template(
+                title='Gala Invitation',
+                primary_color='#DB2777',
+                secondary_color='#F472B6', 
+                body_font_color='#1F2937',
+                font_family='Playfair Display',
+                layout_style='invitation',
+                is_public=True,
+                custom_text={"title": "EVENT INVITATION", "body": "You are cordially invited to"}
+            )
+            db.session.add(t4)
+        else:
+            # If it exists, ensure its style is correct
+            invitation_template.layout_style = 'invitation'
         
         db.session.commit()
 
@@ -227,7 +265,7 @@ def seed_data():
                 currency='USD',
                 provider='stripe',
                 status='paid',
-                plan=random.choice(['starter', 'pro', 'credits']),
+                plan=random.choice(['starter', 'pro', 'growth']),
                 transaction_ref=f"tx_mock_{i}_{random.randint(1000,9999)}",
                 created_at=p_date
             )

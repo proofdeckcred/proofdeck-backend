@@ -38,7 +38,8 @@ def create_app():
 
     app.config['FRONTEND_URL'] = os.environ.get('FRONTEND_URL')
     app.config['PAYSTACK_SECRET_KEY'] = os.environ.get('PAYSTACK_SECRET_KEY')
-    app.config['PAYSTACK_PUBLIC_KEY'] = os.environ.get('PAYSTACK_PUBLIC_KEY')
+    app.config['BACHS_SECRET_KEY'] = os.environ.get('BACHS_SECRET_KEY')
+    app.config['BACHS_WEBHOOK_SECRET'] = os.environ.get('BACHS_WEBHOOK_SECRET')
     
     app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
     app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))

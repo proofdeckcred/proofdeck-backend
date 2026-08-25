@@ -37,9 +37,13 @@ with app.app_context():
                     add_sql = text(f"ALTER TABLE `{table}` ADD COLUMN `{column}` {col_def}")
                     conn.execute(add_sql)
                     conn.commit()
-                else:
-                    print(f"Column `{column}` in `{table}` already exists.")
-            except Exception as e:
-                print(f"Note on `{table}.{column}`: {e}")
+    print("3. Updating enum types...")
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE `payments` MODIFY COLUMN `provider` ENUM('paystack', 'stripe', 'bachs') NOT NULL DEFAULT 'paystack'"))
+            conn.commit()
+            print("Payments provider enum updated to include 'bachs'!")
+        except Exception as e:
+            print(f"Note on payments provider enum: {e}")
 
     print("Database sync complete!")

@@ -184,7 +184,7 @@ class Payment(db.Model):
     __tablename__ = 'payments'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    provider = db.Column(db.Enum('paystack', 'stripe', name='payment_providers'), nullable=False)
+    provider = db.Column(db.Enum('paystack', 'stripe', 'bachs', name='payment_providers'), nullable=False)
     plan = db.Column(db.Enum('starter', 'growth', 'pro', 'enterprise', name='payment_plans'), nullable=False)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     currency = db.Column(db.String(5), nullable=False)
