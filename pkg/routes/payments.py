@@ -64,16 +64,20 @@ def initialize_payment():
         amount_to_charge = int(amount_in_usd * 100)
         currency_to_charge = "USD"
     
-    pending_payment = Payment.query.filter_by(user_id=user_id, plan=plan, status='pending').first()
+    unique_suffix = f"{int(datetime.utcnow().timestamp())}_{uuid.uuid4().hex[:6]}"
+    transaction_ref = f"PD_{user_id}_{plan}_{unique_suffix}"
     
-    if pending_payment:
-        transaction_ref = pending_payment.transaction_ref
-    else:
-        new_payment = Payment(user_id=user_id, provider='paystack', plan=plan, amount=amount_in_usd, currency='USD', status='pending')
-        db.session.add(new_payment)
-        transaction_ref = f"CM-{user_id}-{plan}-{uuid.uuid4().hex[:12]}"
-        new_payment.transaction_ref = transaction_ref
-        db.session.commit()
+    new_payment = Payment(
+        user_id=user_id,
+        provider='paystack',
+        plan=plan,
+        amount=amount_in_usd,
+        currency='USD',
+        status='pending',
+        transaction_ref=transaction_ref
+    )
+    db.session.add(new_payment)
+    db.session.commit()
 
     return jsonify({
         "email": user.email,
@@ -115,11 +119,13 @@ def verify_payment(reference):
             
             if user and plan_details:
                 user.role = plan_details['role']
-                user.cert_quota += plan_details['certificates']
+                user.cert_quota = (user.cert_quota or 0) + plan_details['certificates']
+                if hasattr(user, 'owned_tenant') and user.owned_tenant:
+                    user.owned_tenant.cert_quota = (user.owned_tenant.cert_quota or 0) + plan_details['certificates']
                 payment.status = 'paid'
                 db.session.commit()
                 
-                return jsonify({"msg": "Payment successful. Account upgraded.", "status": "paid"}), 200
+                return jsonify({"msg": "Payment successful. Account upgraded and credits added.", "status": "paid"}), 200
         
         return jsonify({"msg": "Payment verification failed or still pending.", "status": response_data['data']['status']}), 400
 
@@ -155,8 +161,10 @@ def paystack_webhook():
             if user:
                 plan_details = PLANS.get(payment.plan, {})
                 if plan_details:
-                    user.cert_quota += plan_details['certificates']
+                    user.cert_quota = (user.cert_quota or 0) + plan_details['certificates']
                     user.role = plan_details['role']
+                    if hasattr(user, 'owned_tenant') and user.owned_tenant:
+                        user.owned_tenant.cert_quota = (user.owned_tenant.cert_quota or 0) + plan_details['certificates']
             db.session.commit()
     
     return jsonify({"status": "ok"}), 200
