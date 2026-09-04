@@ -43,7 +43,9 @@ def get_current_user():
         workspaces_data.append({
             "id": m.tenant.id,
             "name": m.tenant.name,
-            "role": m.role
+            "role": m.role,
+            "owner_id": m.tenant.owner_id,
+            "cert_quota": m.tenant.cert_quota
         })
 
     return jsonify({
@@ -52,6 +54,7 @@ def get_current_user():
         "email": user.email,
         "role": user.role,
         "cert_quota": cert_quota,
+        "personal_cert_quota": user.cert_quota,
         "signature_image_url": user.signature_image_url,
         "api_key": user.api_key,
         "company": company_data,

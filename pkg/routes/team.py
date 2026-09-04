@@ -4,7 +4,7 @@ from bcrypt import hashpw, gensalt
 from datetime import datetime, timedelta
 import uuid
 
-from ..models import db, User, Tenant, TeamInvitation, Membership
+from ..models import db, User, Tenant, TeamInvitation, Membership, QuotaTransaction
 from ..utils.email_utils import send_team_invitation_email
 from ..utils.helpers import get_active_context
 
@@ -261,3 +261,58 @@ def cancel_invitation(invite_id):
         return jsonify({"msg": "Invitation cancelled successfully."}), 200
     else:
         return jsonify({"msg": f"Cannot cancel invitation with status: {invite.status}."}), 400
+
+
+@team_bp.route('/transfer-quota', methods=['POST'])
+@jwt_required()
+def transfer_quota():
+    user_id = int(get_jwt_identity())
+    user = User.query.get_or_404(user_id)
+
+    data = request.get_json() or {}
+    amount = data.get('amount')
+
+    try:
+        amount = int(amount)
+    except (ValueError, TypeError):
+        return jsonify({"msg": "Invalid transfer amount."}), 400
+
+    if amount <= 0:
+        return jsonify({"msg": "Transfer amount must be greater than zero."}), 400
+
+    tenant_id = data.get('tenant_id')
+    if tenant_id:
+        tenant = Tenant.query.get(tenant_id)
+        if not tenant:
+            return jsonify({"msg": "Team workspace not found."}), 404
+        membership = Membership.query.filter_by(tenant_id=tenant.id, user_id=user.id, status='active').first()
+        if not membership or membership.role != 'owner':
+            return jsonify({"msg": "Only the workspace owner can transfer personal quota to the team workspace."}), 403
+    else:
+        is_comp, active_tenant_id, _, active_role = get_active_context(user)
+        if not is_comp or active_role != 'owner':
+            return jsonify({"msg": "Only the workspace owner can transfer personal quota to the team workspace."}), 403
+        tenant = Tenant.query.get(active_tenant_id)
+        if not tenant:
+            return jsonify({"msg": "Team workspace not found."}), 404
+
+    if user.cert_quota < amount:
+        return jsonify({"msg": f"Insufficient personal quota balance ({user.cert_quota} credits available)."}), 400
+
+    user.cert_quota -= amount
+    tenant.cert_quota += amount
+
+    tx = QuotaTransaction(
+        tenant_id=tenant.id,
+        user_id=user.id,
+        amount=amount
+    )
+    db.session.add(tx)
+    db.session.commit()
+
+    return jsonify({
+        "msg": f"Successfully transferred {amount} credits to {tenant.name}.",
+        "user_cert_quota": user.cert_quota,
+        "tenant_cert_quota": tenant.cert_quota
+    }), 200
+
