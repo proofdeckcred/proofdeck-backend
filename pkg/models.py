@@ -46,6 +46,7 @@ class Tenant(db.Model):
     unique_id = db.Column(db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     cert_quota = db.Column(db.Integer, default=20, nullable=False)
+    linkedin_org_id = db.Column(db.String(50), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     owner = db.relationship('User', backref=db.backref('owned_tenant', uselist=False), foreign_keys=[owner_id])

@@ -523,7 +523,11 @@ def verify_certificate(verification_id):
     if certificate.tenant_id:
         tenant = Tenant.query.get(certificate.tenant_id)
         if tenant:
-            company_data = { "id": tenant.id, "name": tenant.name }
+            company_data = {
+                "id": tenant.id,
+                "name": tenant.name,
+                "linkedin_org_id": tenant.linkedin_org_id
+            }
 
     certificate_data = {
         "id": certificate.id,
@@ -537,6 +541,7 @@ def verify_certificate(verification_id):
         "status": certificate.status,
         "verification_id": certificate.verification_id,
         "signature": certificate.signature,
+        "linkedin_org_id": (company_data.get("linkedin_org_id") if company_data else None),
         "extra_fields": certificate.extra_fields
     }
 

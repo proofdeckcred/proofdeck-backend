@@ -200,6 +200,32 @@ def get_user_performance_insights():
     verification_clicks_est = total_certs_user * 3
     social_shares_est = int(total_certs_user * 1.4)
 
+    # Dynamic Funnel & Channel Sharing Breakdown
+    verified_count = db.session.query(func.count(Certificate.id)).filter(
+        cert_filter,
+        Certificate.status == 'valid'
+    ).scalar() or 0
+
+    funnel_breakdown = {
+        "labels": ["Issued", "Delivered", "Opened", "Verified"],
+        "data": [
+            total_certs_user,
+            sent_count,
+            int(sent_count * 0.85) if sent_count > 0 else 0,
+            verified_count
+        ]
+    }
+
+    channel_breakdown = {
+        "labels": ["LinkedIn", "Direct Link", "Email Delivery", "WhatsApp/X"],
+        "data": [
+            int(total_certs_user * 0.5),
+            int(total_certs_user * 0.3),
+            sent_count,
+            int(total_certs_user * 0.2)
+        ]
+    }
+
     return jsonify({
         "upgrade_required": False,
         "kpis": {
@@ -218,7 +244,9 @@ def get_user_performance_insights():
             "top_programs": {
                 "labels": [p.course_title for p in top_programs_query],
                 "data": [p.count for p in top_programs_query]
-            }
+            },
+            "funnel": funnel_breakdown,
+            "channel_breakdown": channel_breakdown
         },
         "status_breakdown": status_breakdown,
         "top_recipient": top_recipient,

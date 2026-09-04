@@ -25,6 +25,7 @@ with app.app_context():
         ("users", "referred_by", "INT NULL"),
         ("templates", "layout_data", "JSON NULL"),
         ("templates", "is_premium", "BOOLEAN NOT NULL DEFAULT FALSE"),
+        ("tenants", "linkedin_org_id", "VARCHAR(50) NULL"),
     ]
 
     with engine.connect() as conn:
