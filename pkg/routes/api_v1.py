@@ -93,10 +93,14 @@ def create_certificate_via_api():
             # The certificate is still created, which is important. The external service might have its own retry logic for delivery.
             # We don't roll back the creation.
 
+        frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
+        verification_url = f"{frontend_url}/verify/{certificate.verification_id}"
+
         return jsonify({
             "msg": "Certificate created and dispatched successfully.",
             "certificate_id": certificate.id,
-            "verification_id": certificate.verification_id
+            "verification_id": certificate.verification_id,
+            "verification_url": verification_url
         }), 201
 
     except ValueError as e:
@@ -105,3 +109,94 @@ def create_certificate_via_api():
         db.session.rollback()
         current_app.logger.error(f"API Error creating certificate for user {user.id}: {e}")
         return jsonify({"msg": "An internal error occurred."}), 500
+
+
+@api_v1_bp.route('/account', methods=['GET'])
+@api_key_required
+def get_account_info_api():
+    """Returns the authenticated account details and remaining credit quota."""
+    user = g.user
+    from ..utils.helpers import get_active_context
+    is_comp, tenant_id, quota_holder, active_role = get_active_context(user)
+    
+    return jsonify({
+        "user_id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "plan_role": user.role,
+        "available_quota": quota_holder.cert_quota if is_comp else user.cert_quota,
+        "personal_quota": user.cert_quota,
+        "operating_context": "team" if is_comp else "personal"
+    }), 200
+
+
+@api_v1_bp.route('/templates', methods=['GET'])
+@api_key_required
+def get_templates_api():
+    """Lists templates accessible by the authenticated user."""
+    user = g.user
+    templates = Template.query.filter(
+        (Template.user_id == user.id) | (Template.is_public == True)
+    ).order_by(Template.created_at.desc()).all()
+
+    templates_data = []
+    for t in templates:
+        templates_data.append({
+            "id": t.id,
+            "title": t.title,
+            "layout_style": t.layout_style,
+            "is_public": t.is_public,
+            "created_at": t.created_at.isoformat() if t.created_at else None
+        })
+
+    return jsonify({"templates": templates_data}), 200
+
+
+@api_v1_bp.route('/certificates/<string:verification_id>', methods=['GET'])
+@api_key_required
+def get_certificate_details_api(verification_id):
+    """Retrieves single certificate details by verification_id."""
+    user = g.user
+    cert = Certificate.query.filter_by(verification_id=verification_id).first()
+    if not cert:
+        return jsonify({"msg": "Certificate not found."}), 404
+
+    # Ensure certificate belongs to the user or their workspace
+    if cert.user_id != user.id and cert.tenant_id != (user.owned_tenant.id if hasattr(user, 'owned_tenant') and user.owned_tenant else None):
+        return jsonify({"msg": "Permission denied."}), 403
+
+    frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
+
+    return jsonify({
+        "certificate_id": cert.id,
+        "verification_id": cert.verification_id,
+        "recipient_name": cert.recipient_name,
+        "recipient_email": cert.recipient_email,
+        "course_title": cert.course_title,
+        "issuer_name": cert.issuer_name,
+        "issue_date": cert.issue_date.isoformat() if cert.issue_date else None,
+        "status": cert.status,
+        "verification_url": f"{frontend_url}/verify/{cert.verification_id}",
+        "extra_fields": cert.extra_fields or {}
+    }), 200
+
+
+@api_v1_bp.route('/certificates/<string:verification_id>/revoke', methods=['POST'])
+@api_key_required
+def revoke_certificate_api(verification_id):
+    """Revokes an issued certificate."""
+    user = g.user
+    cert = Certificate.query.filter_by(verification_id=verification_id).first()
+    if not cert:
+        return jsonify({"msg": "Certificate not found."}), 404
+
+    if cert.user_id != user.id and cert.tenant_id != (user.owned_tenant.id if hasattr(user, 'owned_tenant') and user.owned_tenant else None):
+        return jsonify({"msg": "Permission denied."}), 403
+
+    cert.status = 'revoked'
+    db.session.commit()
+
+    return jsonify({
+        "msg": f"Certificate {verification_id} has been revoked successfully.",
+        "status": cert.status
+    }), 200
