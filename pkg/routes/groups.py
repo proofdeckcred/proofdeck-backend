@@ -126,7 +126,7 @@ def send_bulk_email_for_group(group_id):
         "count": len(certificates_to_send)
     }), 202
 
-@groups_bp.route('/<int:group_id>/download-bulk-pdf', methods=['GET'])
+@groups_bp.route('/<int:group_id>/download-bulk-pdf', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def download_bulk_pdf_for_group(group_id):
     try:
