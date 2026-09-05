@@ -129,74 +129,54 @@ def send_bulk_email_for_group(group_id):
 @groups_bp.route('/<int:group_id>/download-bulk-pdf', methods=['GET'])
 @jwt_required()
 def download_bulk_pdf_for_group(group_id):
-    user_id = int(get_jwt_identity())
-    user = User.query.get(user_id)
-    is_comp, tenant_id, _, _ = get_active_context(user)
-    if is_comp:
-        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
-    else:
-        group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
+    try:
+        user_id = int(get_jwt_identity())
+        user = User.query.get(user_id)
+        is_comp, tenant_id, _, _ = get_active_context(user)
+        if is_comp:
+            group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
+        else:
+            group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
 
-    if not group.certificates:
-        return jsonify({"msg": "This group contains no certificates to download."}), 404
+        if not group.certificates:
+            return jsonify({"msg": "This group contains no certificates to download."}), 404
 
-    # Pre-fetch all certificates, templates, and user attributes upfront
-    user = group.user
-    # Touch user attributes
-    _ = user.signature_image_url
-    _ = user.name
+        group_name = group.name or "group"
+        issuer_user = group.user or user
 
-    certs_with_templates = []
-    for certificate in group.certificates:
-        template = Template.query.get(certificate.template_id)
-        # Touch attributes to load them into session memory
-        _ = template.layout_style
-        _ = template.logo_url
-        _ = template.background_url
-        _ = template.primary_color
-        _ = template.secondary_color
-        _ = template.body_font_color
-        _ = template.font_family
-        _ = template.custom_text
-        
-        _ = certificate.recipient_name
-        _ = certificate.recipient_email
-        _ = certificate.course_title
-        _ = certificate.issue_date
-        _ = certificate.signature
-        _ = certificate.issuer_name
-        _ = certificate.verification_id
-        _ = certificate.extra_fields
-        
-        certs_with_templates.append((certificate, template))
+        # Pre-cache templates to avoid redundant DB lookups
+        templates_cache = {}
 
-    # Release DB connection early before long-running rendering block
-    db.session.rollback()
-    db.session.remove()
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for certificate in group.certificates:
+                try:
+                    tid = certificate.template_id
+                    if tid not in templates_cache:
+                        templates_cache[tid] = Template.query.get(tid)
+                    template = templates_cache[tid]
 
-    zip_buffer = BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        for certificate, template in certs_with_templates:
-            try:
-                pdf_buffer = generate_certificate_pdf(certificate, template, user)
-                
-                # Sanitize recipient name for the filename
-                sane_name = re.sub(r'[\W_]+', '_', certificate.recipient_name)
-                filename = f"certificate_{sane_name}_{certificate.verification_id[:8]}.pdf"
-                zip_file.writestr(filename, pdf_buffer.getvalue())
-            except Exception as e:
-                current_app.logger.error(f"Skipping PDF for cert {certificate.id} due to error: {e}")
-                zip_file.writestr(f"ERROR_cert_{certificate.id}.txt", f"Could not generate PDF. Error: {e}")
+                    pdf_buffer = generate_certificate_pdf(certificate, template, issuer_user)
 
-    # Return raw buffer values directly instead of a streaming handler
-    zip_data = zip_buffer.getvalue()
-    
-    # Sanitize group name for the zip filename
-    sane_group_name = re.sub(r'[\W_]+', '_', group.name)
-    zip_filename = f"{sane_group_name}_certificates.zip"
+                    # Sanitize recipient name for the filename
+                    raw_name = certificate.recipient_name or "certificate"
+                    sane_name = re.sub(r'[\W_]+', '_', raw_name).strip('_')
+                    vid = (certificate.verification_id or "")[:8]
+                    filename = f"certificate_{sane_name}_{vid}.pdf" if vid else f"certificate_{sane_name}_{certificate.id}.pdf"
+                    zip_file.writestr(filename, pdf_buffer.getvalue())
+                except Exception as e:
+                    current_app.logger.error(f"Skipping PDF for cert {certificate.id} due to error: {e}")
+                    zip_file.writestr(f"ERROR_cert_{certificate.id}.txt", f"Could not generate PDF. Error: {e}")
 
-    return Response(
-        zip_data,
-        mimetype='application/zip',
-        headers={'Content-Disposition': f'attachment; filename={zip_filename}'}
-    )
+        zip_data = zip_buffer.getvalue()
+        sane_group_name = re.sub(r'[\W_]+', '_', group_name).strip('_') or 'certificates'
+        zip_filename = f"{sane_group_name}_certificates.zip"
+
+        return Response(
+            zip_data,
+            mimetype='application/zip',
+            headers={'Content-Disposition': f'attachment; filename="{zip_filename}"'}
+        )
+    except Exception as e:
+        current_app.logger.error(f"Failed to generate group ZIP download: {e}", exc_info=True)
+        return jsonify({"msg": f"Failed to generate ZIP archive: {str(e)}"}), 500

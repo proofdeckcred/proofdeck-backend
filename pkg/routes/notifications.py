@@ -47,7 +47,7 @@ def unread_count():
     count = Notification.query.filter_by(user_id=user_id, is_read=False).count()
     return jsonify({'unread_count': count}), 200
 
-@notifications_bp.route('/<int:notification_id>/read', methods=['PATCH'], strict_slashes=False)
+@notifications_bp.route('/<int:notification_id>/read', methods=['PATCH', 'POST', 'PUT'], strict_slashes=False)
 @jwt_required()
 def mark_read(notification_id):
     user_id = int(get_jwt_identity())
@@ -58,9 +58,9 @@ def mark_read(notification_id):
         
     notif.is_read = True
     db.session.commit()
-    return jsonify({"msg": "Notification marked as read"}), 200
+    return jsonify({"msg": "Notification marked as read", "id": notif.id, "is_read": True}), 200
 
-@notifications_bp.route('/read-all', methods=['PATCH'], strict_slashes=False)
+@notifications_bp.route('/read-all', methods=['PATCH', 'POST', 'PUT'], strict_slashes=False)
 @jwt_required()
 def mark_all_read():
     user_id = int(get_jwt_identity())

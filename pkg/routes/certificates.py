@@ -1,10 +1,9 @@
-from flask import Blueprint, request, jsonify, Response, current_app
+from flask import Blueprint, request, jsonify, Response, current_app, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from sqlalchemy import func, case
 import csv
 from io import StringIO, BytesIO
-import uuid
 import uuid
 import pandas as pd
 from flask_mail import Message
@@ -20,6 +19,21 @@ from ..services.bulk_service import process_bulk_upload
 from ..utils.helpers import parse_smart_date, normalize_email, get_active_context
 
 certificate_bp = Blueprint('certificates', __name__)
+
+def _get_certificate(cert_identifier):
+    """
+    Finds a certificate by primary key ID or by verification_id (UUID string).
+    Aborts with 404 if not found.
+    """
+    str_id = str(cert_identifier).strip()
+    cert = None
+    if str_id.isdigit():
+        cert = Certificate.query.get(int(str_id))
+    if not cert:
+        cert = Certificate.query.filter_by(verification_id=str_id).first()
+    if not cert:
+        abort(404, description="Certificate not found")
+    return cert
 
 # --- Notification Helpers (Local to this route group) ---
 
@@ -77,14 +91,15 @@ def _create_issuer_summary_email(issuer_name, count, cert_list, action_type="cre
 
 # --- Routes ---
 
-@certificate_bp.route('/<int:cert_id>/pdf', methods=['GET'])
+@certificate_bp.route('/<string:cert_id>/pdf', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def get_certificate_pdf(cert_id):
     """
     Generates and downloads the PDF for a specific certificate.
+    Accepts integer ID or UUID verification_id.
     """
     user_id = int(get_jwt_identity())
-    certificate = Certificate.query.get_or_404(cert_id)
+    certificate = _get_certificate(cert_id)
     user = User.query.get(user_id)
     
     # Ownership/multi-tenant check
@@ -271,14 +286,108 @@ def get_certificates():
     } for cert in certs]), 200
 
 
-@certificate_bp.route('/<int:cert_id>', methods=['GET'])
+@certificate_bp.route('/bulk-template', methods=['GET'], strict_slashes=False)
+def download_bulk_template():
+    """
+    Returns a CSV template for bulk uploads.
+    """
+    output = StringIO()
+    writer = csv.writer(output)
+    # Added 'amount' for receipt support
+    headers = ['recipient_name', 'recipient_email', 'course_title', 'issuer_name', 'issue_date', 'signature', 'amount']
+    writer.writerow(headers)
+    writer.writerow(['Jane Doe', 'jane@example.com', 'Web Development', 'Tech Institute', '2024-10-22', 'Dr. Smith', '500.00'])
+    output.seek(0)
+    return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=proofdeck_bulk_template.csv"})
+
+
+@certificate_bp.route('/advanced-search', methods=['GET'], strict_slashes=False)
+def advanced_search_certificates():
+    """
+    Public Ledger Search.
+    """
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = 9
+        recipient_name = request.args.get('recipient', '').strip()
+        issuer_name_filter = request.args.get('issuer', '').strip()
+        course_title = request.args.get('course', '').strip()
+        start_date_str = request.args.get('start_date', '').strip()
+        end_date_str = request.args.get('end_date', '').strip()
+        sort_by = request.args.get('sort_by', 'issue_date')
+        sort_order = request.args.get('sort_order', 'desc')
+
+        # Advanced Query Building
+        issuer_name_column = func.coalesce(Tenant.name, User.name).label('issuer_name')
+        issuer_type_column = case((Tenant.id != None, 'company'), else_='individual').label('issuer_type')
+
+        base_query = db.session.query(
+            Certificate.recipient_name,
+            Certificate.course_title,
+            Certificate.issue_date,
+            Certificate.verification_id,
+            issuer_name_column,
+            issuer_type_column
+        ).join(User, Certificate.user_id == User.id) \
+         .join(Tenant, Certificate.tenant_id == Tenant.id, isouter=True)
+
+        if len(recipient_name) >= 3:
+            base_query = base_query.filter(func.lower(Certificate.recipient_name).like(f"%{recipient_name.lower()}%"))
+        if len(issuer_name_filter) >= 2:
+            base_query = base_query.filter(func.lower(issuer_name_column).like(f"%{issuer_name_filter.lower()}%"))
+        if len(course_title) >= 3:
+            base_query = base_query.filter(func.lower(Certificate.course_title).like(f"%{course_title.lower()}%"))
+
+        if start_date_str and end_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                base_query = base_query.filter(Certificate.issue_date.between(start_date, end_date))
+            except ValueError:
+                pass
+
+        sort_column = Certificate.issue_date
+        if sort_by == 'recipient_name': sort_column = func.lower(Certificate.recipient_name)
+        
+        base_query = base_query.order_by(sort_column.asc() if sort_order == 'asc' else sort_column.desc())
+
+        paginated_results = base_query.paginate(page=page, per_page=per_page, error_out=False)
+
+        results = [{
+            "recipient_name": cert.recipient_name,
+            "course_title": cert.course_title,
+            "issue_date": cert.issue_date.isoformat(),
+            "verification_id": cert.verification_id,
+            "issuer_name": cert.issuer_name,
+            "issuer_type": cert.issuer_type
+        } for cert in paginated_results.items]
+
+        return jsonify({
+            "results": results,
+            "pagination": {
+                "total": paginated_results.total,
+                "pages": paginated_results.pages,
+                "page": paginated_results.page,
+                "has_next": paginated_results.has_next,
+                "has_prev": paginated_results.has_prev,
+                "per_page": per_page
+            }
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Search error: {e}")
+        return jsonify({"msg": "Search error"}), 500
+
+
+@certificate_bp.route('/<string:cert_id>', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def get_certificate(cert_id):
     """
     Gets details of a single certificate.
+    Accepts integer ID or UUID verification_id.
     """
     user_id = int(get_jwt_identity())
-    certificate = Certificate.query.get_or_404(cert_id)
+    certificate = _get_certificate(cert_id)
     user = User.query.get(user_id)
     
     is_comp, tenant_id, _, _ = get_active_context(user)
@@ -321,14 +430,15 @@ def get_certificate(cert_id):
     return jsonify({ "certificate": cert_data, "template": template_data }), 200
 
 
-@certificate_bp.route('/<int:cert_id>', methods=['PUT'])
+@certificate_bp.route('/<string:cert_id>', methods=['PUT'], strict_slashes=False)
 @jwt_required()
 def update_certificate(cert_id):
     """
     Updates certificate details.
+    Accepts integer ID or UUID verification_id.
     """
     user_id = int(get_jwt_identity())
-    cert = Certificate.query.get_or_404(cert_id)
+    cert = _get_certificate(cert_id)
     user = User.query.get(user_id)
     
     is_comp, tenant_id, _, _ = get_active_context(user)
@@ -435,29 +545,15 @@ def bulk_create_certificates():
         return jsonify({"msg": "Failed to start processing"}), 500
 
 
-@certificate_bp.route('/bulk-template', methods=['GET'])
-def download_bulk_template():
-    """
-    Returns a CSV template for bulk uploads.
-    """
-    output = StringIO()
-    writer = csv.writer(output)
-    # Added 'amount' for receipt support
-    headers = ['recipient_name', 'recipient_email', 'course_title', 'issuer_name', 'issue_date', 'signature', 'amount']
-    writer.writerow(headers)
-    writer.writerow(['Jane Doe', 'jane@example.com', 'Web Development', 'Tech Institute', '2024-10-22', 'Dr. Smith', '500.00'])
-    output.seek(0)
-    return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=proofdeck_bulk_template.csv"})
-
-
-@certificate_bp.route('/<int:cert_id>/send', methods=['POST'])
+@certificate_bp.route('/<string:cert_id>/send', methods=['POST'], strict_slashes=False)
 @jwt_required()
 def send_certificate_email_route(cert_id):
     """
     Resends an email for a specific certificate.
+    Accepts integer ID or UUID verification_id.
     """
     user_id = int(get_jwt_identity())
-    certificate = Certificate.query.get_or_404(cert_id)
+    certificate = _get_certificate(cert_id)
     
     if certificate.user_id != user_id: 
         return jsonify({"msg": "Permission denied"}), 403
@@ -592,14 +688,15 @@ def verify_certificate(verification_id):
     }), 200
 
 
-@certificate_bp.route('/<int:cert_id>/status', methods=['PUT'])
+@certificate_bp.route('/<string:cert_id>/status', methods=['PUT'], strict_slashes=False)
 @jwt_required()
 def update_certificate_status(cert_id):
     """
     Revoke or Re-validate a certificate.
+    Accepts integer ID or UUID verification_id.
     """
     user_id = int(get_jwt_identity())
-    certificate = Certificate.query.get_or_404(cert_id)
+    certificate = _get_certificate(cert_id)
     if certificate.user_id != user_id:
         return jsonify({"msg": "Permission denied"}), 403
 
@@ -612,91 +709,16 @@ def update_certificate_status(cert_id):
     db.session.commit()
     return jsonify({"msg": f"Status updated to {status}"}), 200
 
-@certificate_bp.route('/advanced-search', methods=['GET'])
-def advanced_search_certificates():
-    """
-    Public Ledger Search.
-    """
-    try:
-        page = request.args.get('page', 1, type=int)
-        per_page = 9
-        recipient_name = request.args.get('recipient', '').strip()
-        issuer_name_filter = request.args.get('issuer', '').strip()
-        course_title = request.args.get('course', '').strip()
-        start_date_str = request.args.get('start_date', '').strip()
-        end_date_str = request.args.get('end_date', '').strip()
-        sort_by = request.args.get('sort_by', 'issue_date')
-        sort_order = request.args.get('sort_order', 'desc')
 
-        # Advanced Query Building
-        issuer_name_column = func.coalesce(Tenant.name, User.name).label('issuer_name')
-        issuer_type_column = case((Tenant.id != None, 'company'), else_='individual').label('issuer_type')
-
-        base_query = db.session.query(
-            Certificate.recipient_name,
-            Certificate.course_title,
-            Certificate.issue_date,
-            Certificate.verification_id,
-            issuer_name_column,
-            issuer_type_column
-        ).join(User, Certificate.user_id == User.id) \
-         .join(Tenant, Certificate.tenant_id == Tenant.id, isouter=True)
-
-        if len(recipient_name) >= 3:
-            base_query = base_query.filter(func.lower(Certificate.recipient_name).like(f"%{recipient_name.lower()}%"))
-        if len(issuer_name_filter) >= 2:
-            base_query = base_query.filter(func.lower(issuer_name_column).like(f"%{issuer_name_filter.lower()}%"))
-        if len(course_title) >= 3:
-            base_query = base_query.filter(func.lower(Certificate.course_title).like(f"%{course_title.lower()}%"))
-
-        if start_date_str and end_date_str:
-            try:
-                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-                base_query = base_query.filter(Certificate.issue_date.between(start_date, end_date))
-            except ValueError:
-                pass
-
-        sort_column = Certificate.issue_date
-        if sort_by == 'recipient_name': sort_column = func.lower(Certificate.recipient_name)
-        
-        base_query = base_query.order_by(sort_column.asc() if sort_order == 'asc' else sort_column.desc())
-
-        paginated_results = base_query.paginate(page=page, per_page=per_page, error_out=False)
-
-        results = [{
-            "recipient_name": cert.recipient_name,
-            "course_title": cert.course_title,
-            "issue_date": cert.issue_date.isoformat(),
-            "verification_id": cert.verification_id,
-            "issuer_name": cert.issuer_name,
-            "issuer_type": cert.issuer_type
-        } for cert in paginated_results.items]
-
-        return jsonify({
-            "results": results,
-            "pagination": {
-                "total": paginated_results.total,
-                "pages": paginated_results.pages,
-                "page": paginated_results.page,
-                "has_next": paginated_results.has_next,
-                "has_prev": paginated_results.has_prev,
-                "per_page": per_page
-            }
-        }), 200
-
-    except Exception as e:
-        current_app.logger.error(f"Search error: {e}")
-        return jsonify({"msg": "Search error"}), 500
-
-@certificate_bp.route('/<int:cert_id>', methods=['DELETE'])
+@certificate_bp.route('/<string:cert_id>', methods=['DELETE'], strict_slashes=False)
 @jwt_required()
 def delete_certificate(cert_id):
     """
     Deletes a certificate.
+    Accepts integer ID or UUID verification_id.
     """
     user_id = int(get_jwt_identity())
-    certificate = Certificate.query.get_or_404(cert_id)
+    certificate = _get_certificate(cert_id)
     user = User.query.get(user_id)
     
     is_comp, tenant_id, _, _ = get_active_context(user)
