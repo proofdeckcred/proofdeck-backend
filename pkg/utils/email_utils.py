@@ -173,7 +173,7 @@ def send_bulk_email(users, subject, user_content, header_image_url=None):
     social_links = {
         'instagram': current_app.config.get('SOCIAL_INSTAGRAM', '#'),
         'facebook': current_app.config.get('SOCIAL_FACEBOOK', '#'),
-        'linkedin': 'https://www.linkedin.com/company/proofdeck',
+        'linkedin': 'https://www.linkedin.com/company/proofdeckhq',
         'twitter': 'https://x.com/proofdeck',
     }
 

@@ -4,6 +4,7 @@ from flask_cors import CORS
 from .extensions import db, migrate, mail, jwt
 from .routes import register_blueprints
 from .models import Admin, User
+from celery_app import celery, make_celery
 
 def create_app():
     # Templates are located in backend/templates, but this file is in backend/pkg/
@@ -60,6 +61,17 @@ def create_app():
     migrate.init_app(app, db)
     mail.init_app(app)
     jwt.init_app(app)
+
+    # Initialize Celery with Flask app context
+    celery.conf.update(broker_url=os.environ.get('REDIS_URL', 'redis://localhost:6379/0'))
+    celery.conf.update(result_backend=os.environ.get('REDIS_URL', 'redis://localhost:6379/0'))
+
+    class ContextTask(celery.Task):
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+
+    celery.Task = ContextTask
 
     @jwt.user_lookup_loader
     def user_lookup_callback(_jwt_header, jwt_data):

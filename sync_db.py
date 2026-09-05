@@ -26,6 +26,11 @@ with app.app_context():
         ("templates", "layout_data", "JSON NULL"),
         ("templates", "is_premium", "BOOLEAN NOT NULL DEFAULT FALSE"),
         ("tenants", "linkedin_org_id", "VARCHAR(50) NULL"),
+        # BackgroundJob columns
+        ("background_jobs", "celery_task_id", "VARCHAR(255) NULL"),
+        ("background_jobs", "result_summary", "JSON NULL"),
+        # Notification columns
+        ("notifications", "reference_id", "INT NULL"),
     ]
 
     with engine.connect() as conn:

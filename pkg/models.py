@@ -254,3 +254,36 @@ class QuotaTransaction(db.Model):
     user = db.relationship('User', backref='quota_transactions')
     tenant = db.relationship('Tenant', backref='quota_transactions')
     certificate = db.relationship('Certificate', backref='quota_transactions')
+
+class BackgroundJob(db.Model):
+    __tablename__ = 'background_jobs'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='SET NULL'), nullable=True)
+    celery_task_id = db.Column(db.String(255), nullable=True, index=True)
+    job_type = db.Column(db.String(50), nullable=False, default='bulk_create')  # bulk_create, bulk_send
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending, processing, completed, failed
+    total_items = db.Column(db.Integer, default=0)
+    processed_items = db.Column(db.Integer, default=0)
+    failed_items = db.Column(db.Integer, default=0)
+    result_summary = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship('User', backref=db.backref('background_jobs', lazy=True))
+    tenant = db.relationship('Tenant', backref=db.backref('background_jobs', lazy=True))
+
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=True)
+    type = db.Column(db.String(20), nullable=False, default='info')  # info, success, warning, error
+    category = db.Column(db.String(50), nullable=False, default='system')  # bulk_complete, bulk_send, system
+    reference_id = db.Column(db.Integer, nullable=True)  # Links to job_id or cert_id
+    is_read = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('notifications', lazy=True))

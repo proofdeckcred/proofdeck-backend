@@ -47,6 +47,11 @@ def register_blueprints(app):
     app.register_blueprint(referrals_bp, url_prefix='/api/referrals')
     app.register_blueprint(team_bp, url_prefix='/api/team')
     
+    from .notifications import notifications_bp
+    from .jobs import jobs_bp
+    app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
+    app.register_blueprint(jobs_bp, url_prefix='/api/jobs')
+    
     # All admin blueprints are grouped under a single, consistent prefix.
     app.register_blueprint(admin_auth_bp, url_prefix='/api/admin/auth')
     app.register_blueprint(admin_users_bp, url_prefix='/api/admin')

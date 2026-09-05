@@ -4,7 +4,6 @@ from datetime import datetime
 from sqlalchemy import func, case
 import csv
 from io import StringIO, BytesIO
-import threading
 import uuid
 import uuid
 import pandas as pd
@@ -389,19 +388,36 @@ def bulk_create_certificates():
             if template.user_id != user_id or template.tenant_id is not None:
                 return jsonify({"msg": "Permission denied"}), 403
 
-    # Call the Bulk Service to handle parsing and processing in a BACKGROUND THREAD
-    # We read the file stream into memory first to avoid file handle closure issues
+    # Call the Bulk Service to handle parsing and processing via Celery
     try:
         file_content = file.read()
+        import base64
+        file_content_b64 = base64.b64encode(file_content).decode('utf-8')
         filename = file.filename
         
-        # We need to pass the app object for the thread to create an app_context
-        app = current_app._get_current_object()
+        from ..models import BackgroundJob
+        job = BackgroundJob(
+            user_id=user.id,
+            tenant_id=company_id if is_comp else None,
+            job_type='bulk_create',
+            status='pending',
+            total_items=0
+        )
+        db.session.add(job)
+        db.session.commit()
         
-        thread = threading.Thread(target=process_bulk_upload, args=(app, file_content, filename, template.id, group_id, user.id, is_comp, company_id))
-        thread.start()
+        from ..tasks.bulk_tasks import process_bulk_upload_task
+        task = process_bulk_upload_task.delay(
+            job.id, file_content_b64, filename, template.id, group_id, user.id, is_comp, company_id
+        )
         
-        return jsonify({"msg": "Processing started. You will be notified via email upon completion."}), 202
+        job.celery_task_id = task.id
+        db.session.commit()
+        
+        return jsonify({
+            "msg": "Processing started. You will be notified upon completion.",
+            "job_id": job.id
+        }), 202
         
     except Exception as e:
         current_app.logger.error(f"Failed to start background process: {e}")
