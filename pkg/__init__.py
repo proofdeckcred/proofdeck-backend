@@ -62,16 +62,9 @@ def create_app():
     mail.init_app(app)
     jwt.init_app(app)
 
-    # Initialize Celery with Flask app context
-    celery.conf.update(broker_url=os.environ.get('REDIS_URL', 'redis://localhost:6379/0'))
-    celery.conf.update(result_backend=os.environ.get('REDIS_URL', 'redis://localhost:6379/0'))
-
-    class ContextTask(celery.Task):
-        def __call__(self, *args, **kwargs):
-            with app.app_context():
-                return self.run(*args, **kwargs)
-
-    celery.Task = ContextTask
+    # Initialize Celery with Flask app settings
+    redis_url = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/5')
+    celery.conf.update(broker_url=redis_url, result_backend=redis_url)
 
     @jwt.user_lookup_loader
     def user_lookup_callback(_jwt_header, jwt_data):

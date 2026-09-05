@@ -11,11 +11,12 @@ from ..utils.helpers import parse_smart_date, normalize_email, normalize_headers
 @celery.task(bind=True)
 def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_id, group_id, user_id, is_comp=False, company_id=None):
     """
-    Celery task for processing bulk certificate uploads.
+    Celery task for processing bulk certificate uploads with incremental progress and live database commits.
     Runs inside Flask app context automatically via ContextTask.
     """
     job = BackgroundJob.query.get(job_id)
     if not job:
+        print(f"Bulk Task Error: Job #{job_id} not found.")
         return
 
     job.status = 'processing'
@@ -33,8 +34,8 @@ def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_
             quota_holder = tenant
 
     # 1. Read File
-    file_content = base64.b64decode(file_content_b64)
     try:
+        file_content = base64.b64decode(file_content_b64)
         if filename.lower().endswith(('.xlsx', '.xls', '.ods')):
             df = pd.read_excel(BytesIO(file_content))
         else:
@@ -43,7 +44,14 @@ def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_
         job.status = 'failed'
         job.result_summary = {"error": f"Failed to read file: {e}"}
         job.completed_at = datetime.utcnow()
-        notif = Notification(user_id=user.id, title="Bulk upload failed", message=f"Could not read your file: {e}", type="error", category="bulk_complete", reference_id=job.id)
+        notif = Notification(
+            user_id=user.id,
+            title="Bulk upload failed",
+            message=f"Could not read your file: {e}",
+            type="error",
+            category="bulk_complete",
+            reference_id=job.id
+        )
         db.session.add(notif)
         db.session.commit()
         return
@@ -52,7 +60,14 @@ def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_
         job.status = 'failed'
         job.result_summary = {"error": "File is empty"}
         job.completed_at = datetime.utcnow()
-        notif = Notification(user_id=user.id, title="Bulk upload failed", message="The uploaded file is empty.", type="error", category="bulk_complete", reference_id=job.id)
+        notif = Notification(
+            user_id=user.id,
+            title="Bulk upload failed",
+            message="The uploaded file is empty.",
+            type="error",
+            category="bulk_complete",
+            reference_id=job.id
+        )
         db.session.add(notif)
         db.session.commit()
         return
@@ -65,19 +80,27 @@ def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_
         job.status = 'failed'
         job.result_summary = {"error": "Missing compulsory 'recipient_name' column"}
         job.completed_at = datetime.utcnow()
-        notif = Notification(user_id=user.id, title="Bulk upload failed", message="Missing compulsory 'recipient_name' column in your file.", type="error", category="bulk_complete", reference_id=job.id)
+        notif = Notification(
+            user_id=user.id,
+            title="Bulk upload failed",
+            message="Missing compulsory 'recipient_name' column in your file.",
+            type="error",
+            category="bulk_complete",
+            reference_id=job.id
+        )
         db.session.add(notif)
         db.session.commit()
         return
 
+    # Update total items immediately so progress bar shows real total
     job.total_items = len(df)
+    job.processed_items = 0
+    job.failed_items = 0
     db.session.commit()
 
-    # 4. Processing
-    certs_to_add = []
+    # 4. Processing with incremental commits
     errors = []
     quota_left = quota_holder.cert_quota
-
     df = df.where(pd.notna(df), None)
 
     processed = 0
@@ -89,94 +112,87 @@ def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_
         if quota_left <= 0:
             errors.append({"row": row_num, "msg": "Quota exhausted. Upgrade plan to continue."})
             failed += 1
-        else:
-            try:
-                r_name = row.get('recipient_name')
-                c_title = str(row.get('course_title')) if row.get('course_title') else ""
-                i_date_raw = row.get('issue_date')
+            job.failed_items = failed
+            db.session.commit()
+            continue
 
-                if not r_name:
-                    errors.append({"row": row_num, "msg": "Missing compulsory recipient name."})
-                    failed += 1
-                else:
-                    i_date = parse_smart_date(i_date_raw)
-                    r_email = normalize_email(row.get('recipient_email'))
-                    issuer = str(row.get('issuer_name')) if row.get('issuer_name') else (tenant_name if (is_comp and tenant_name) else user.name)
-                    sig = str(row.get('signature')) if row.get('signature') else None
+        try:
+            r_name = row.get('recipient_name')
+            c_title = str(row.get('course_title')) if row.get('course_title') else ""
+            i_date_raw = row.get('issue_date')
 
-                    extra_fields = {}
-                    if row.get('amount'):
-                        extra_fields['amount'] = str(row.get('amount'))
-
-                    cert = Certificate(
-                        user_id=user.id,
-                        tenant_id=company_id if is_comp else None,
-                        template_id=template.id,
-                        group_id=group_id,
-                        recipient_name=str(r_name),
-                        recipient_email=r_email,
-                        course_title=str(c_title),
-                        issuer_name=issuer,
-                        issue_date=i_date,
-                        signature=sig,
-                        extra_fields=extra_fields,
-                        verification_id=str(uuid.uuid4())
-                    )
-
-                    certs_to_add.append(cert)
-                    quota_left -= 1
-                    processed += 1
-
-            except Exception as e:
-                errors.append({"row": row_num, "msg": str(e)})
+            if not r_name:
+                errors.append({"row": row_num, "msg": "Missing compulsory recipient name."})
                 failed += 1
+                job.failed_items = failed
+                db.session.commit()
+                continue
 
-        # Update progress periodically
-        if (processed + failed) % 10 == 0:
+            i_date = parse_smart_date(i_date_raw)
+            r_email = normalize_email(row.get('recipient_email'))
+            issuer = str(row.get('issuer_name')) if row.get('issuer_name') else (tenant_name if (is_comp and tenant_name) else user.name)
+            sig = str(row.get('signature')) if row.get('signature') else None
+
+            extra_fields = {}
+            if row.get('amount'):
+                extra_fields['amount'] = str(row.get('amount'))
+
+            cert = Certificate(
+                user_id=user.id,
+                tenant_id=company_id if is_comp else None,
+                template_id=template.id,
+                group_id=group_id,
+                recipient_name=str(r_name),
+                recipient_email=r_email,
+                course_title=str(c_title),
+                issuer_name=issuer,
+                issue_date=i_date,
+                signature=sig,
+                extra_fields=extra_fields,
+                verification_id=str(uuid.uuid4())
+            )
+
+            db.session.add(cert)
+            db.session.flush()
+
+            # Record Quota deduction
+            txn = QuotaTransaction(
+                tenant_id=company_id if is_comp else None,
+                user_id=user.id,
+                certificate_id=cert.id,
+                amount=-1
+            )
+            db.session.add(txn)
+
+            quota_left -= 1
+            quota_holder.cert_quota = quota_left
+            processed += 1
+
+            # Update job progress on every row
             job.processed_items = processed
             job.failed_items = failed
             db.session.commit()
 
-    job.processed_items = processed
-    job.failed_items = failed
-
-    # 5. Commit to DB
-    if certs_to_add:
-        try:
-            db.session.add_all(certs_to_add)
-            db.session.flush()
-
-            txns = []
-            for cert in certs_to_add:
-                txns.append(QuotaTransaction(
-                    tenant_id=company_id if is_comp else None,
-                    user_id=user.id,
-                    certificate_id=cert.id,
-                    amount=-1
-                ))
-            db.session.add_all(txns)
-
-            quota_holder.cert_quota = quota_left
-            db.session.commit()
         except Exception as e:
             db.session.rollback()
-            job.status = 'failed'
-            job.result_summary = {"error": f"Database error: {e}"}
-            job.completed_at = datetime.utcnow()
-            notif = Notification(user_id=user.id, title="Bulk upload failed", message="Failed to save certificates to the database.", type="error", category="bulk_complete", reference_id=job.id)
-            db.session.add(notif)
+            errors.append({"row": row_num, "msg": str(e)})
+            failed += 1
+            job.failed_items = failed
             db.session.commit()
-            return
 
-    # 6. Mark complete and create notification
+    # 5. Mark completed
     job.status = 'completed'
     job.completed_at = datetime.utcnow()
-    job.result_summary = {"created": len(certs_to_add), "errors": len(errors), "error_details": errors[:10]}
+    job.result_summary = {
+        "created": processed,
+        "errors": len(errors),
+        "error_details": errors[:10]
+    }
 
     notif = Notification(
         user_id=user.id,
         title="Bulk upload complete",
-        message=f"{len(certs_to_add)} certificates created successfully." + (f" {len(errors)} rows had errors." if errors else ""),
+        message=f"{processed} certificates issued successfully." + (f" {len(errors)} rows had errors." if errors else ""),
         type="success",
         category="bulk_complete",
         reference_id=job.id
@@ -184,17 +200,14 @@ def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_
     db.session.add(notif)
     db.session.commit()
 
-    # 7. Email Issuer
+    # 6. Email notification to issuer
     try:
         from ..routes.certificates import _send_issuer_notification_email
 
-        created_count = len(certs_to_add)
-        error_count = len(errors)
-
         summary_html = f"""
         <h3>Bulk Processing Complete</h3>
-        <p><strong>{created_count}</strong> documents have been successfully generated.</p>
-        <p><strong>{error_count}</strong> rows had errors/warnings.</p>
+        <p><strong>{processed}</strong> documents have been successfully generated.</p>
+        <p><strong>{len(errors)}</strong> rows had errors/warnings.</p>
         """
 
         if errors:
