@@ -4,7 +4,10 @@ import uuid
 from io import BytesIO
 from datetime import datetime
 from celery_app import celery
-from ..models import db, Certificate, User, Template, Tenant, BackgroundJob, Notification, QuotaTransaction
+from ..models import db, Certificate, User, Template, Tenant, Group, BackgroundJob, Notification, QuotaTransaction
+from ..extensions import mail
+from ..services.pdf_service import generate_certificate_pdf
+from ..services.email_service import create_certificate_email
 from ..utils.helpers import parse_smart_date, normalize_email, normalize_headers
 
 
@@ -224,3 +227,102 @@ def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_
 
     except Exception as e:
         print(f"Email Notification Error: {e}")
+
+
+@celery.task(bind=True)
+def process_bulk_email_task(self, job_id, group_id, user_id, is_comp=False, tenant_id=None):
+    """
+    Celery task for sending bulk emails to unsent certificates in a group with live progress tracking.
+    """
+    job = BackgroundJob.query.get(job_id)
+    if not job:
+        print(f"Bulk Email Task Error: Job #{job_id} not found.")
+        return
+
+    job.status = 'processing'
+    db.session.commit()
+
+    user = User.query.get(user_id)
+    if is_comp and tenant_id:
+        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first()
+    else:
+        group = Group.query.filter_by(id=group_id, user_id=user_id).first()
+
+    if not group:
+        job.status = 'failed'
+        job.result_summary = {"error": "Group not found"}
+        job.completed_at = datetime.utcnow()
+        db.session.commit()
+        return
+
+    certificates_to_send = [cert for cert in group.certificates if not cert.sent_at]
+    job.total_items = len(certificates_to_send)
+    job.processed_items = 0
+    job.failed_items = 0
+    db.session.commit()
+
+    sent = 0
+    failed = 0
+    errors = []
+    sent_certs = []
+
+    for certificate in certificates_to_send:
+        if not certificate.recipient_email:
+            errors.append({"certificate_id": certificate.id, "msg": "No recipient email address"})
+            failed += 1
+            job.failed_items = failed
+            db.session.commit()
+            continue
+
+        try:
+            template = Template.query.get(certificate.template_id)
+            pdf_buffer = generate_certificate_pdf(certificate, template, group.user)
+            certificate.template = template
+
+            msg = create_certificate_email(certificate, pdf_buffer)
+            mail.send(msg)
+
+            certificate.sent_at = datetime.utcnow()
+            sent += 1
+            sent_certs.append(certificate)
+
+            job.processed_items = sent
+            job.failed_items = failed
+            db.session.commit()
+
+        except Exception as e:
+            db.session.rollback()
+            errors.append({"certificate_id": certificate.id, "msg": str(e)})
+            failed += 1
+            job.failed_items = failed
+            db.session.commit()
+
+    job.status = 'completed'
+    job.completed_at = datetime.utcnow()
+    job.result_summary = {
+        "sent": sent,
+        "failed": failed,
+        "errors": errors[:10]
+    }
+
+    notif = Notification(
+        user_id=user.id,
+        title="Email dispatch complete",
+        message=f"{sent} certificate emails sent successfully to group '{group.name}'." + (f" {failed} failed." if failed else ""),
+        type="success",
+        category="bulk_send",
+        reference_id=job.id
+    )
+    db.session.add(notif)
+    db.session.commit()
+
+    try:
+        from ..routes.certificates import _send_issuer_notification_email
+        summary_html = f"""
+        <h3>Bulk Email Dispatch Complete</h3>
+        <p><strong>{sent}</strong> emails successfully delivered to group <strong>{group.name}</strong>.</p>
+        <p><strong>{failed}</strong> errors encountered.</p>
+        """
+        _send_issuer_notification_email(user, "Bulk Emails Sent — ProofDeck", summary_html)
+    except Exception as e:
+        print(f"Summary email error: {e}")

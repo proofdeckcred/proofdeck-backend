@@ -4,7 +4,8 @@ from ..models import db, BackgroundJob
 
 jobs_bp = Blueprint('jobs', __name__)
 
-@jobs_bp.route('/', methods=['GET'])
+@jobs_bp.route('', methods=['GET'], strict_slashes=False)
+@jobs_bp.route('/', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def list_jobs():
     user_id = int(get_jwt_identity())
@@ -14,7 +15,7 @@ def list_jobs():
         'jobs': [_serialize_job(j) for j in jobs]
     }), 200
 
-@jobs_bp.route('/<int:job_id>', methods=['GET'])
+@jobs_bp.route('/<int:job_id>', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def get_job(job_id):
     user_id = int(get_jwt_identity())

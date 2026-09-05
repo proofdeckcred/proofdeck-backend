@@ -412,6 +412,17 @@ def bulk_create_certificates():
         )
         
         job.celery_task_id = task.id
+
+        from ..models import Notification
+        start_notif = Notification(
+            user_id=user.id,
+            title="Bulk upload started",
+            message=f"File '{filename}' received. Generating certificates in the background...",
+            type="info",
+            category="bulk_create",
+            reference_id=job.id
+        )
+        db.session.add(start_notif)
         db.session.commit()
         
         return jsonify({

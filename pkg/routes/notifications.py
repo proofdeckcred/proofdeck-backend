@@ -4,12 +4,13 @@ from ..models import db, Notification
 
 notifications_bp = Blueprint('notifications', __name__)
 
-@notifications_bp.route('/', methods=['GET'])
+@notifications_bp.route('', methods=['GET'], strict_slashes=False)
+@notifications_bp.route('/', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def list_notifications():
     user_id = int(get_jwt_identity())
     page = request.args.get('page', 1, type=int)
-    unread_only = request.args.get('unread_only', type=lambda v: v.lower() == 'true')
+    unread_only = request.args.get('unread_only', type=lambda v: str(v).lower() == 'true')
     
     query = Notification.query.filter_by(user_id=user_id)
     if unread_only:
@@ -18,11 +19,14 @@ def list_notifications():
     pagination = query.order_by(Notification.created_at.desc()).paginate(page=page, per_page=20, error_out=False)
     
     unread_count = Notification.query.filter_by(user_id=user_id, is_read=False).count()
+    total_all = Notification.query.filter_by(user_id=user_id).count()
     
     notifications = [{
         'id': n.id,
         'title': n.title,
         'message': n.message,
+        'type': n.type,
+        'category': n.category,
         'is_read': n.is_read,
         'created_at': n.created_at.isoformat()
     } for n in pagination.items]
@@ -30,19 +34,20 @@ def list_notifications():
     return jsonify({
         'notifications': notifications,
         'total': pagination.total,
+        'total_all': total_all,
         'unread_count': unread_count,
         'page': pagination.page,
         'pages': pagination.pages
     }), 200
 
-@notifications_bp.route('/unread-count', methods=['GET'])
+@notifications_bp.route('/unread-count', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def unread_count():
     user_id = int(get_jwt_identity())
     count = Notification.query.filter_by(user_id=user_id, is_read=False).count()
     return jsonify({'unread_count': count}), 200
 
-@notifications_bp.route('/<int:notification_id>/read', methods=['PATCH'])
+@notifications_bp.route('/<int:notification_id>/read', methods=['PATCH'], strict_slashes=False)
 @jwt_required()
 def mark_read(notification_id):
     user_id = int(get_jwt_identity())
@@ -55,7 +60,7 @@ def mark_read(notification_id):
     db.session.commit()
     return jsonify({"msg": "Notification marked as read"}), 200
 
-@notifications_bp.route('/read-all', methods=['PATCH'])
+@notifications_bp.route('/read-all', methods=['PATCH'], strict_slashes=False)
 @jwt_required()
 def mark_all_read():
     user_id = int(get_jwt_identity())

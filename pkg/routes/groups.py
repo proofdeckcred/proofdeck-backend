@@ -91,36 +91,40 @@ def send_bulk_email_for_group(group_id):
     if not certificates_to_send:
         return jsonify({"msg": "All certificates in this group have already been sent."}), 400
 
-    sent_certs, errors = [], []
-    
-    # Iterate and send
-    for certificate in certificates_to_send:
-        try:
-            # Re-fetch template to be safe
-            template = Template.query.get(certificate.template_id)
-            
-            # Generate PDF
-            pdf_buffer = generate_certificate_pdf(certificate, template, group.user)
-            
-            # Attach template for email logic
-            certificate.template = template
-            
-            # Create Email
-            msg = create_certificate_email(certificate, pdf_buffer)
-            mail.send(msg)
-            
-            certificate.sent_at = datetime.utcnow()
-            db.session.commit()  # Commit immediately to free transaction locks
-            sent_certs.append(certificate.id)
-            
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Failed to send email for cert {certificate.id}: {e}")
-            errors.append({"certificate_id": certificate.id, "msg": str(e)})
+    from ..models import BackgroundJob, Notification
+    from ..tasks.bulk_tasks import process_bulk_email_task
 
-    if errors:
-        return jsonify({"msg": f"Processed with errors. Sent: {len(sent_certs)}", "sent": sent_certs, "errors": errors}), 207
-    return jsonify({"msg": f"Successfully sent {len(sent_certs)} emails"}), 200
+    job = BackgroundJob(
+        user_id=user.id,
+        tenant_id=tenant_id if is_comp else None,
+        job_type='bulk_send',
+        status='pending',
+        total_items=len(certificates_to_send)
+    )
+    db.session.add(job)
+    db.session.commit()
+
+    task = process_bulk_email_task.delay(
+        job.id, group.id, user.id, is_comp, tenant_id
+    )
+    job.celery_task_id = task.id
+
+    start_notif = Notification(
+        user_id=user.id,
+        title="Email dispatch started",
+        message=f"Sending {len(certificates_to_send)} certificate emails for '{group.name}' in the background...",
+        type="info",
+        category="bulk_send",
+        reference_id=job.id
+    )
+    db.session.add(start_notif)
+    db.session.commit()
+
+    return jsonify({
+        "msg": f"Dispatching {len(certificates_to_send)} certificate emails in the background.",
+        "job_id": job.id,
+        "count": len(certificates_to_send)
+    }), 202
 
 @groups_bp.route('/<int:group_id>/download-bulk-pdf', methods=['GET'])
 @jwt_required()
