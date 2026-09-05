@@ -425,7 +425,6 @@ def bulk_create_certificates():
 
 
 @certificate_bp.route('/bulk-template', methods=['GET'])
-@jwt_required()
 def download_bulk_template():
     """
     Returns a CSV template for bulk uploads.
