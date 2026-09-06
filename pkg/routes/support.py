@@ -14,6 +14,7 @@ def _notify_admin_of_widget_message(sender_email, message_text):
     """Send an email notification to the admin when a visitor sends a widget message."""
     admin_email = current_app.config.get('ADMIN_EMAIL') or 'support@proofdeck.app'
     frontend_url = current_app.config.get('FRONTEND_URL', 'https://proofdeck.app')
+    recipients = list(dict.fromkeys(filter(None, [admin_email, 'support@proofdeck.app'])))
 
     clean_message = bleach.clean(message_text)
     clean_email = bleach.clean(sender_email or 'Anonymous visitor')
@@ -51,7 +52,7 @@ def _notify_admin_of_widget_message(sender_email, message_text):
     msg = MailMessage(
         subject=f"💬 New widget message from {clean_email}",
         sender=get_sender('ProofDeck Support'),
-        recipients=[admin_email],
+        recipients=recipients,
         reply_to=sender_email if sender_email else None,
         html=html_body
     )
