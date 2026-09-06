@@ -10,3 +10,4 @@ instance/
 *.log
 uploads/*
 !uploads/.gitkeep
+docs/
