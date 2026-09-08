@@ -27,6 +27,8 @@ def list_broadcast_campaigns():
             "title": c.title,
             "subject": c.subject,
             "tag": c.tag,
+            "opening_why": c.opening_why,
+            "content_blocks": c.content_blocks,
             "segment": c.segment,
             "status": c.status,
             "total_recipients": c.total_recipients,
@@ -80,6 +82,12 @@ def save_broadcast_campaign():
     tag = data.get('tag', 'ANNOUNCEMENT')
     opening_why = data.get('opening_why', '')
     content_blocks = data.get('content_blocks', [])
+    if isinstance(content_blocks, str):
+        import json
+        try:
+            content_blocks = json.loads(content_blocks)
+        except Exception:
+            content_blocks = []
     segment = data.get('segment', 'all')
 
     if not title or not subject:
@@ -141,32 +149,37 @@ def test_send_broadcast(campaign_id):
         return jsonify({"msg": "Admin access required"}), 403
 
     data = request.get_json() or {}
-    test_email = data.get('test_email') or current_user.email
+    test_email = data.get('test_email') or getattr(current_user, 'email', None)
     if not test_email:
         return jsonify({"msg": "Recipient test email is required"}), 400
 
-    campaign = BroadcastCampaign.query.get_or_404(campaign_id)
-    rendered = render_broadcast_campaign(campaign)
+    try:
+        campaign = BroadcastCampaign.query.get_or_404(campaign_id)
+        rendered = render_broadcast_campaign(campaign)
 
-    test_subject = f"[TEST PREVIEW] {rendered['subject']}"
-    res = send_promotional_email(
-        to_email=test_email,
-        subject=test_subject,
-        html_content=rendered['html'],
-        text_content=rendered['text'],
-        template_name='broadcast-preview',
-        campaign_id=campaign.id
-    )
+        test_subject = f"[TEST PREVIEW] {rendered['subject']}"
+        res = send_promotional_email(
+            to_email=test_email,
+            subject=test_subject,
+            html_content=rendered['html'],
+            text_content=rendered['text'],
+            template_name='broadcast-preview',
+            campaign_id=campaign.id
+        )
 
-    campaign.test_sent_to = test_email
-    campaign.test_sent_at = datetime.now(timezone.utc)
-    db.session.commit()
+        campaign.test_sent_to = test_email
+        campaign.test_sent_at = datetime.utcnow()
+        db.session.commit()
 
-    return jsonify({
-        "msg": f"Test email successfully dispatched to {test_email}",
-        "provider_message_id": res.get('provider_message_id'),
-        "test_sent_at": campaign.test_sent_at.isoformat()
-    }), 200
+        return jsonify({
+            "msg": f"Test email successfully dispatched to {test_email}",
+            "provider_message_id": res.get('provider_message_id') if isinstance(res, dict) else None,
+            "test_sent_at": campaign.test_sent_at.isoformat() if campaign.test_sent_at else None
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in test_send_broadcast: {e}", exc_info=True)
+        return jsonify({"msg": f"Failed to send test email: {str(e)}"}), 500
 
 @admin_broadcasts_bp.route('/broadcasts/<int:campaign_id>/send', methods=['POST'])
 @jwt_required()
@@ -189,7 +202,7 @@ def trigger_broadcast(campaign_id):
         }), 400
 
     # Determine recipient query based on segment
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     base_query = User.query.filter(User.role != 'suspended')
 
     if campaign.segment == 'active':

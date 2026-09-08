@@ -141,7 +141,18 @@ def render_broadcast_campaign(campaign, user=None, custom_blocks=None):
     """
     Renders broadcast-base.mjml using campaign data and optional user personalization.
     """
-    blocks = custom_blocks if custom_blocks is not None else campaign.content_blocks
+    raw_blocks = custom_blocks if custom_blocks is not None else getattr(campaign, 'content_blocks', [])
+    if isinstance(raw_blocks, str):
+        import json
+        try:
+            blocks = json.loads(raw_blocks)
+        except Exception:
+            blocks = []
+    elif isinstance(raw_blocks, list):
+        blocks = raw_blocks
+    else:
+        blocks = []
+
     frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
 
     if user:
@@ -157,6 +168,8 @@ def render_broadcast_campaign(campaign, user=None, custom_blocks=None):
     # Personalize blocks and subject
     personalized_blocks = []
     for b in blocks:
+        if not isinstance(b, dict):
+            continue
         b_copy = dict(b)
         if 'content' in b_copy and isinstance(b_copy['content'], str):
             b_copy['content'] = b_copy['content'].replace('{{ user_name }}', user_name)

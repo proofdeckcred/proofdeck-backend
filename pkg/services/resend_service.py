@@ -144,7 +144,7 @@ def send_promotional_email(
             campaign_id=campaign_id,
             period_key=period_key,
             provider_message_id=provider_message_id,
-            sent_at=datetime.now(timezone.utc)
+            sent_at=datetime.utcnow()
         )
         db.session.add(log_entry)
         db.session.commit()
