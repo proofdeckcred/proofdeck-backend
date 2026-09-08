@@ -1,0 +1,73 @@
+<mjml>
+  <mj-head>
+    <mj-title>{{ email_title | default("ProofDeck") }}</mj-title>
+    <mj-preview>{{ preview_text | default("Tamper-proof digital credentials for Africa's talent.") }}</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" />
+      <mj-text font-size="15px" line-height="24px" color="#0B0B12" />
+      <mj-section background-color="#FFFFFF" padding="24px 32px" />
+      <mj-button background-color="#5B4CF5" color="#FFFFFF" font-size="15px" font-weight="600" border-radius="8px" padding="16px 24px" inner-padding="12px 24px" />
+    </mj-attributes>
+    <mj-style inline="inline">
+      .stat-card {
+        background-color: #F7F7FA;
+        border: 1px solid #E7E5F0;
+        border-radius: 10px;
+        padding: 16px;
+        text-align: center;
+      }
+      .feature-box {
+        background-color: #FFFFFF;
+        border: 1px solid #E7E5F0;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .badge-amber {
+        background-color: #FEF3C7;
+        color: #B45309;
+        font-weight: 600;
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        display: inline-block;
+      }
+      .highlight-box {
+        background-color: #EEF2FF;
+        border: 1px solid #C7D2FE;
+        border-radius: 10px;
+        padding: 18px;
+      }
+    </mj-style>
+  </mj-head>
+  <mj-body background-color="#F7F7FA" width="600px">
+    <!-- Header with Brand Logo -->
+    <mj-section background-color="#FFFFFF" padding="20px 32px 16px 32px" border-bottom="1px solid #E7E5F0">
+      <mj-column width="100%">
+        <mj-image align="left" width="140px" src="https://www.proofdeck.app/logo.png" alt="ProofDeck" href="https://www.proofdeck.app" padding="0" />
+      </mj-column>
+    </mj-section>
+
+    <!-- Main Content Slot -->
+    {% block content %}{% endblock %}
+
+    <!-- Footer & Deliverability Compliance -->
+    <mj-section background-color="#F7F7FA" padding="28px 32px 36px 32px">
+      <mj-column width="100%">
+        <mj-text align="center" font-size="12px" line-height="18px" color="#6B6B7C" padding="0 0 12px 0">
+          ProofDeck — Tamper-Proof Digital Credentials for Africa & Beyond.
+        </mj-text>
+        <mj-text align="center" font-size="12px" line-height="18px" color="#6B6B7C" padding="0 0 16px 0">
+          You received this update because you have an account or active workspace on ProofDeck.
+        </mj-text>
+        <mj-text align="center" font-size="12px" line-height="18px" color="#6B6B7C" padding="0">
+          <a href="{{ preferences_url | default('https://www.proofdeck.app/dashboard/settings') }}" style="color: #5B4CF5; text-decoration: underline; margin-right: 12px;">Manage Preferences</a>
+          &bull;
+          <a href="{{ unsubscribe_url | default('https://www.proofdeck.app/email/unsubscribe') }}" style="color: #6B6B7C; text-decoration: underline; margin-left: 12px;">Unsubscribe</a>
+        </mj-text>
+        <mj-text align="center" font-size="11px" line-height="16px" color="#9CA3AF" padding="16px 0 0 0">
+          &copy; {{ current_year | default(2026) }} ProofDeck Inc. All rights reserved.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

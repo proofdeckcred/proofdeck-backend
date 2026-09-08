@@ -1,0 +1,71 @@
+{% extends "_layout.mjml" %}
+
+{% block content %}
+<mj-section background-color="#FFFFFF" padding="36px 32px 16px 32px">
+  <mj-column width="100%">
+    <mj-text font-size="13px" font-weight="700" color="#5B4CF5" letter-spacing="0.5px" padding="0 0 8px 0">
+      PROOFDECK PLATFORM UPDATE
+    </mj-text>
+    <mj-text font-size="22px" font-weight="700" line-height="30px" color="#0B0B12" padding="0 0 16px 0">
+      {{ headline | default("Someone might be trying to verify a certificate you haven't issued yet.") }}
+    </mj-text>
+    <mj-text font-size="15px" line-height="24px" color="#374151" padding="0 0 24px 0">
+      {{ opening_why | default("Africa's employers and institutions are moving off paper faster than ever. When your learners complete a program, waiting weeks for a physical certificate slows down their career momentum. Here is what ProofDeck makes seamless today:") }}
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<!-- Feature Tile 1: Live Verification -->
+<mj-section background-color="#FFFFFF" padding="0px 32px 20px 32px">
+  <mj-column width="100%">
+    <mj-text padding="16px" css-class="feature-box">
+      <div style="font-size: 16px; font-weight: 700; color: #0B0B12; margin-bottom: 6px;">
+        1. Live QR & One-Click Verification
+      </div>
+      <div style="font-size: 14px; line-height: 22px; color: #4B5563; margin-bottom: 12px;">
+        Every certificate gets a unique, immutable URL and QR code. Anyone in the world can confirm authenticity in 2 seconds.
+      </div>
+      <img src="https://www.proofdeck.app/images/landing_page_image/verification.png" alt="Verification Interface" style="width: 100%; max-width: 520px; border-radius: 6px; display: block; border: 1px solid #E7E5F0;" />
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<!-- Feature Tile 2: Bulk Issuance -->
+<mj-section background-color="#FFFFFF" padding="0px 32px 20px 32px">
+  <mj-column width="100%">
+    <mj-text padding="16px" css-class="feature-box">
+      <div style="font-size: 16px; font-weight: 700; color: #0B0B12; margin-bottom: 6px;">
+        2. Issue 500+ Certificates from a Spreadsheet
+      </div>
+      <div style="font-size: 14px; line-height: 22px; color: #4B5563; margin-bottom: 12px;">
+        Drop your Excel or CSV list of recipients. ProofDeck creates, signs, emails, and generates download links in parallel.
+      </div>
+      <img src="https://www.proofdeck.app/images/landing_page_image/bulk_creation.png" alt="Bulk Creation" style="width: 100%; max-width: 520px; border-radius: 6px; display: block; border: 1px solid #E7E5F0;" />
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<!-- Feature Tile 3: Visual Editor -->
+<mj-section background-color="#FFFFFF" padding="0px 32px 24px 32px">
+  <mj-column width="100%">
+    <mj-text padding="16px" css-class="feature-box">
+      <div style="font-size: 16px; font-weight: 700; color: #0B0B12; margin-bottom: 6px;">
+        3. Custom Visual Branding & High-Res Export
+      </div>
+      <div style="font-size: 14px; line-height: 22px; color: #4B5563; margin-bottom: 12px;">
+        Drag-and-drop your institution's seal, signatures, and brand colors. Ready for instant PDF download and physical print.
+      </div>
+      <img src="https://www.proofdeck.app/images/landing_page_image/visual-editor.png" alt="Visual Editor" style="width: 100%; max-width: 520px; border-radius: 6px; display: block; border: 1px solid #E7E5F0;" />
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<!-- CTA Button -->
+<mj-section background-color="#FFFFFF" padding="8px 32px 36px 32px">
+  <mj-column width="100%">
+    <mj-button href="{{ cta_url | default('https://www.proofdeck.app/dashboard') }}" align="center">
+      {{ cta_text | default("Log In & Issue Your Next Batch") }}
+    </mj-button>
+  </mj-column>
+</mj-section>
+{% endblock %}

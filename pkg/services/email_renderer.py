@@ -4,10 +4,12 @@ from datetime import datetime, timedelta, timezone
 from flask import current_app
 from sqlalchemy import func
 
-# Ensure emails directory is importable
-repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-if repo_root not in sys.path:
-    sys.path.insert(0, repo_root)
+# Ensure both backend dir and repo root are importable
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+repo_root = os.path.abspath(os.path.join(backend_dir, '..'))
+for path_entry in [backend_dir, repo_root]:
+    if path_entry not in sys.path:
+        sys.path.insert(0, path_entry)
 
 from emails.render import render_email
 from ..models import Certificate, EmailLog, EmailPreference, User

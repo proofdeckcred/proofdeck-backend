@@ -1,0 +1,107 @@
+{% extends "_layout.mjml" %}
+
+{% block content %}
+<mj-section background-color="#FFFFFF" padding="32px 32px 16px 32px">
+  <mj-column width="100%">
+    <mj-text font-size="13px" font-weight="700" color="#5B4CF5" letter-spacing="0.5px" padding="0 0 8px 0">
+      WEEKLY MOMENTUM REPORT
+    </mj-text>
+    <mj-text font-size="22px" font-weight="700" line-height="30px" color="#0B0B12" padding="0 0 16px 0">
+      {{ headline | default("Your credentials are being verified in the real world.") }}
+    </mj-text>
+    <mj-text font-size="15px" line-height="24px" color="#374151" padding="0 0 20px 0">
+      {{ opening_why | default("Every certificate you issue is one less phone call someone has to make to prove they are authentic. Here is what happened with your credentials this week:") }}
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+{% if not is_zero_state %}
+<!-- 3-Column Stats Row -->
+<mj-section background-color="#FFFFFF" padding="0px 24px 24px 24px">
+  <!-- Stat 1: Issued -->
+  <mj-column width="33.33%" padding="8px">
+    <mj-text padding="16px" css-class="stat-card" align="center">
+      <div style="font-size: 28px; font-weight: 800; color: #5B4CF5; line-height: 32px;">
+        {{ issued_count | default(0) }}
+      </div>
+      <div style="font-size: 12px; font-weight: 600; color: #6B6B7C; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">
+        Issued This Week
+      </div>
+    </mj-text>
+  </mj-column>
+  <!-- Stat 2: Verifications -->
+  <mj-column width="33.33%" padding="8px">
+    <mj-text padding="16px" css-class="stat-card" align="center">
+      <div style="font-size: 28px; font-weight: 800; color: #1FAE6B; line-height: 32px;">
+        {{ verifications_count | default(0) }}
+      </div>
+      <div style="font-size: 12px; font-weight: 600; color: #6B6B7C; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">
+        Live Verifications
+      </div>
+    </mj-text>
+  </mj-column>
+  <!-- Stat 3: Recipients -->
+  <mj-column width="33.33%" padding="8px">
+    <mj-text padding="16px" css-class="stat-card" align="center">
+      <div style="font-size: 28px; font-weight: 800; color: #0B0B12; line-height: 32px;">
+        {{ all_time_issued | default(issued_count) }}
+      </div>
+      <div style="font-size: 12px; font-weight: 600; color: #6B6B7C; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">
+        Total All-Time
+      </div>
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+{% if top_certificate_title %}
+<!-- Highlight Block: Most-Viewed Certificate -->
+<mj-section background-color="#FFFFFF" padding="0px 32px 24px 32px">
+  <mj-column width="100%">
+    <mj-text padding="20px" css-class="highlight-box">
+      <div style="font-size: 12px; font-weight: 700; color: #4338CA; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+        🏆 Most-Viewed Credential This Week
+      </div>
+      <div style="font-size: 16px; font-weight: 700; color: #1E1B4B; margin-bottom: 4px;">
+        {{ top_certificate_title }}
+      </div>
+      {% if top_certificate_recipient %}
+      <div style="font-size: 14px; color: #4B5563; margin-bottom: 8px;">
+        Issued to <strong>{{ top_certificate_recipient }}</strong>
+      </div>
+      {% endif %}
+      <div style="font-size: 13px; color: #5B4CF5; font-weight: 600;">
+        Checked {{ top_certificate_views | default(1) }} times by employers and third parties.
+      </div>
+    </mj-text>
+  </mj-column>
+</mj-section>
+{% endif %}
+
+{% else %}
+<!-- Zero-State Re-engagement Section -->
+<mj-section background-color="#FFFFFF" padding="0px 32px 24px 32px">
+  <mj-column width="100%">
+    <mj-text padding="20px" css-class="highlight-box">
+      <div style="font-size: 15px; font-weight: 700; color: #1E1B4B; margin-bottom: 6px;">
+        Have a finishing cohort or new certificates to issue?
+      </div>
+      <div style="font-size: 14px; line-height: 22px; color: #4B5563;">
+        Upload your graduate spreadsheet and issue tamper-proof certificates in under two minutes. Your learners get verifiable links instantly.
+      </div>
+    </mj-text>
+  </mj-column>
+</mj-section>
+{% endif %}
+
+<!-- Credits & Call to Action -->
+<mj-section background-color="#FFFFFF" padding="0px 32px 32px 32px">
+  <mj-column width="100%">
+    <mj-text font-size="14px" color="#6B6B7C" align="center" padding="0 0 16px 0">
+      Available Issuance Credits: <strong style="color: #0B0B12;">{{ credits_remaining | default(0) }}</strong>
+    </mj-text>
+    <mj-button href="{{ cta_url | default('https://www.proofdeck.app/dashboard') }}" align="center">
+      {{ cta_text | default("Issue More Certificates") }}
+    </mj-button>
+  </mj-column>
+</mj-section>
+{% endblock %}

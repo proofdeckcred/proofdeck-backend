@@ -1,0 +1,89 @@
+{% extends "_layout.mjml" %}
+
+{% block content %}
+<mj-section background-color="#FFFFFF" padding="36px 32px 16px 32px">
+  <mj-column width="100%">
+    {% if tag %}
+    <mj-text font-size="12px" font-weight="700" color="#5B4CF5" letter-spacing="0.8px" text-transform="uppercase" padding="0 0 8px 0">
+      {{ tag }}
+    </mj-text>
+    {% endif %}
+    <mj-text font-size="22px" font-weight="700" line-height="30px" color="#0B0B12" padding="0 0 16px 0">
+      {{ headline }}
+    </mj-text>
+    {% if opening_why %}
+    <mj-text font-size="15px" line-height="24px" color="#374151" padding="0 0 20px 0">
+      {{ opening_why }}
+    </mj-text>
+    {% endif %}
+  </mj-column>
+</mj-section>
+
+{% if blocks %}
+  {% for block in blocks %}
+    {% if block.type == "paragraph" %}
+      <mj-section background-color="#FFFFFF" padding="0px 32px 16px 32px">
+        <mj-column width="100%">
+          <mj-text font-size="15px" line-height="24px" color="#374151" padding="0">
+            {{ block.content | safe }}
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+    {% elif block.type == "heading" %}
+      <mj-section background-color="#FFFFFF" padding="12px 32px 12px 32px">
+        <mj-column width="100%">
+          <mj-text font-size="18px" font-weight="700" line-height="26px" color="#0B0B12" padding="0">
+            {{ block.content }}
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+    {% elif block.type == "callout" %}
+      <mj-section background-color="#FFFFFF" padding="8px 32px 20px 32px">
+        <mj-column width="100%">
+          <mj-text padding="18px" css-class="highlight-box">
+            <div style="font-size: 15px; font-weight: 700; color: #1E1B4B; margin-bottom: 4px;">
+              {{ block.title | default("Important Note") }}
+            </div>
+            <div style="font-size: 14px; line-height: 22px; color: #374151;">
+              {{ block.content | safe }}
+            </div>
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+    {% elif block.type == "image" %}
+      <mj-section background-color="#FFFFFF" padding="8px 32px 20px 32px">
+        <mj-column width="100%">
+          <mj-image src="{{ block.url }}" alt="{{ block.alt | default('ProofDeck Update') }}" border-radius="8px" padding="0" />
+          {% if block.caption %}
+          <mj-text align="center" font-size="12px" color="#6B6B7C" padding="8px 0 0 0">
+            {{ block.caption }}
+          </mj-text>
+          {% endif %}
+        </mj-column>
+      </mj-section>
+
+    {% elif block.type == "button" %}
+      <mj-section background-color="#FFFFFF" padding="16px 32px 24px 32px">
+        <mj-column width="100%">
+          <mj-button href="{{ block.url }}" align="center">
+            {{ block.text | default("Learn More") }}
+          </mj-button>
+        </mj-column>
+      </mj-section>
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+{% if cta_text and cta_url %}
+<mj-section background-color="#FFFFFF" padding="16px 32px 36px 32px">
+  <mj-column width="100%">
+    <mj-button href="{{ cta_url }}" align="center">
+      {{ cta_text }}
+    </mj-button>
+  </mj-column>
+</mj-section>
+{% endif %}
+{% endblock %}
