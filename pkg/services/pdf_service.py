@@ -362,3 +362,21 @@ def _render_pdf_bytes(html_content):
     except Exception as e:
         current_app.logger.error(f"WeasyPrint PDF generation error: {e}")
         raise
+
+def generate_certificate_png(certificate, template, issuer, dpi=300):
+    """
+    Renders the certificate directly to high-resolution PNG image bytes.
+    Exclusively available for Enterprise plan members.
+    """
+    try:
+        import fitz
+        pdf_buffer = generate_certificate_pdf(certificate, template, issuer)
+        doc = fitz.open(stream=pdf_buffer.getvalue(), filetype="pdf")
+        page = doc.load_page(0)
+        pix = page.get_pixmap(dpi=dpi)
+        png_buffer = BytesIO(pix.tobytes("png"))
+        png_buffer.seek(0)
+        return png_buffer
+    except Exception as e:
+        current_app.logger.error(f"PNG Generation error: {e}")
+        raise

@@ -29,8 +29,8 @@ def create_app():
     # --- END OF FIX ---
 
     # Load configuration from environment variables
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_default_secret_key')
-    app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'a_default_jwt_key')
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'hbhfsgbhc67879732rgfguh378264idveydtc34')
+    app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', '648gcvwcvotya87476fvghcjasd82784')
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 86400
 
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'mysql+mysqlconnector://root@127.0.0.1/certifyme_db')
@@ -62,17 +62,32 @@ def create_app():
     mail.init_app(app)
     jwt.init_app(app)
 
-    # Initialize Celery with Flask app settings
-    redis_url = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/5')
-    celery.conf.update(broker_url=redis_url, result_backend=redis_url)
+    # Initialize Celery with Flask app settings if available
+    if celery and hasattr(celery, 'conf'):
+        redis_url = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/5')
+        celery.conf.update(broker_url=redis_url, result_backend=redis_url)
 
     @jwt.user_lookup_loader
     def user_lookup_callback(_jwt_header, jwt_data):
-        identity = jwt_data["sub"]
-        if jwt_data.get("is_admin"):
-            return Admin.query.get(int(identity))
-        else:
-            return User.query.get(int(identity))
+        identity = jwt_data.get("sub")
+        if not identity:
+            return None
+        try:
+            uid = int(identity)
+            if jwt_data.get("is_admin"):
+                return Admin.query.get(uid)
+            else:
+                return User.query.get(uid)
+        except (ValueError, TypeError, Exception):
+            return None
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error_string):
+        return jsonify({"msg": f"Invalid token: {error_string}", "error": "invalid_token"}), 401
+
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_data):
+        return jsonify({"msg": "Token has expired", "error": "token_expired"}), 401
 
     @app.route('/uploads/<path:filename>')
     def serve_upload(filename):

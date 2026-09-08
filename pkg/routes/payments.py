@@ -5,7 +5,7 @@ import uuid
 import hashlib
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from ..models import db, User, Payment
+from ..models import db, User, Payment, Referral, Notification
 from datetime import datetime, timedelta
 import json
 
@@ -14,10 +14,10 @@ payments_bp = Blueprint('payments', __name__)
 PAYSTACK_API_URL = "https://api.paystack.co"
 
 PLANS = {
-    "starter": {"amount_ngn": 25000, "amount_usd": 18.00, "certificates": 500, "role": "starter"},
-    "growth": {"amount_ngn": 60000, "amount_usd": 42.00, "certificates": 2000, "role": "growth"},
-    "pro": {"amount_ngn": 100000, "amount_usd": 70.00, "certificates": 5000, "role": "pro"},
-    "enterprise": {"amount_ngn": 300000, "amount_usd": 200.00, "certificates": 20000, "role": "enterprise"}
+    "starter": {"amount_ngn": 15000, "amount_usd": 11.35, "certificates": 100, "role": "starter"},
+    "growth": {"amount_ngn": 45000, "amount_usd": 34.00, "certificates": 400, "role": "growth"},
+    "pro": {"amount_ngn": 90000, "amount_usd": 68.00, "certificates": 1200, "role": "pro"},
+    "enterprise": {"amount_ngn": 250000, "amount_usd": 189.00, "certificates": 5000, "role": "enterprise"}
 }
 
 role_order = {
@@ -30,18 +30,45 @@ role_order = {
 
 def get_usd_to_ngn_rate():
     try:
-        response = requests.get('https://api.exchangerate-api.com/v4/latest/USD')
+        response = requests.get('https://api.exchangerate-api.com/v4/latest/USD', timeout=5)
         response.raise_for_status()
         data = response.json()
         rate = data.get('rates', {}).get('NGN')
         if rate:
-            return rate
-    except requests.exceptions.RequestException as e:
-        current_app.logger.error(f"Could not fetch exchange rate: {e}")
-    return 1500.0 
+            return float(rate)
+    except Exception as e:
+        current_app.logger.warning(f"Could not fetch exchange rate: {e}")
+    return 1321.23
+
+def get_plan_details(plan_name):
+    """Returns plan details with live USD calculation based on current exchange rate."""
+    if plan_name not in PLANS:
+        return None
+    details = dict(PLANS[plan_name])
+    rate = get_usd_to_ngn_rate()
+    if rate and rate > 0:
+        details['amount_usd'] = round(details['amount_ngn'] / rate, 2)
+    return details
+
+@payments_bp.route('/plans', methods=['GET'])
+def get_plans():
+    """Public endpoint to fetch current plans with live accurate USD conversion."""
+    result = {}
+    rate = get_usd_to_ngn_rate()
+    for key, p in PLANS.items():
+        usd_price = round(p['amount_ngn'] / rate, 2) if rate > 0 else p['amount_usd']
+        result[key] = {
+            "name": key.title(),
+            "amount_ngn": p['amount_ngn'],
+            "amount_usd": usd_price,
+            "certificates": p['certificates'],
+            "role": p['role'],
+            "rate": rate
+        }
+    return jsonify(result), 200
 
 def fulfill_payment(payment):
-    """Upgrades the user's role and adds certificate quota upon successful payment."""
+    """Upgrades user role, adds certificate quota, and awards 10% referral credits on referee's first purchase."""
     if not payment or payment.status == 'paid':
         return
     payment.status = 'paid'
@@ -49,10 +76,37 @@ def fulfill_payment(payment):
     if user:
         plan_details = PLANS.get(payment.plan, {})
         if plan_details:
-            user.cert_quota = (user.cert_quota or 0) + plan_details.get('certificates', 0)
+            certs_bought = plan_details.get('certificates', 0)
+            user.cert_quota = (user.cert_quota or 0) + certs_bought
             user.role = plan_details.get('role', user.role)
             if hasattr(user, 'owned_tenant') and user.owned_tenant:
-                user.owned_tenant.cert_quota = (user.owned_tenant.cert_quota or 0) + plan_details.get('certificates', 0)
+                user.owned_tenant.cert_quota = (user.owned_tenant.cert_quota or 0) + certs_bought
+
+            # Check for 10% Referral Bonus (only on first payment)
+            referral = Referral.query.filter_by(referred_id=user.id).first()
+            if referral and not referral.reward_claimed:
+                reward_credits = int(certs_bought * 0.10)
+                referrer = User.query.get(referral.referrer_id)
+                if referrer and reward_credits > 0:
+                    referrer.cert_quota = (referrer.cert_quota or 0) + reward_credits
+                    if hasattr(referrer, 'owned_tenant') and referrer.owned_tenant:
+                        referrer.owned_tenant.cert_quota = (referrer.owned_tenant.cert_quota or 0) + reward_credits
+                    
+                    referral.status = 'completed'
+                    referral.reward_claimed = True
+                    referral.credits_earned = reward_credits
+
+                    # Send notification to referrer
+                    try:
+                        notif = Notification(
+                            user_id=referrer.id,
+                            title="Referral Bonus Credited! 🎉",
+                            message=f"Your referred friend {user.name or user.email} just purchased the {payment.plan.title()} plan! You earned {reward_credits} bonus certificate credits (10%)."
+                        )
+                        db.session.add(notif)
+                    except Exception as e:
+                        current_app.logger.warning(f"Could not create notification for referrer: {e}")
+
     db.session.commit()
 
 @payments_bp.route('/initialize', methods=['POST'])
@@ -69,7 +123,7 @@ def initialize_payment():
     if not user:
         return jsonify({"msg": "User not found"}), 404
     
-    plan_details = PLANS[plan]
+    plan_details = get_plan_details(plan)
     unique_suffix = f"{int(datetime.utcnow().timestamp())}_{uuid.uuid4().hex[:6]}"
     transaction_ref = f"PD_{user_id}_{plan}_{unique_suffix}"
     

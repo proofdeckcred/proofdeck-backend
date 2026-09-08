@@ -36,9 +36,8 @@ def get_stats():
         "total_referrals": len(referrals),
         "completed_referrals": sum(1 for r in referrals if r.status == 'completed'),
         "pending_referrals": sum(1 for r in referrals if r.status == 'pending'),
-        # Each completed referral gives 5 bonus credits (example mapping of $15 value)
-        # Ideally this should be dynamic or stored, but for now we calculate it.
-        "earned_credits": sum(1 for r in referrals if r.status == 'completed') * 5
+        # Referrer earns 10% of credits purchased by referee on their first payment
+        "earned_credits": sum((getattr(r, 'credits_earned', 0) or 0) for r in referrals if r.status == 'completed')
     }
     
     return jsonify(stats), 200

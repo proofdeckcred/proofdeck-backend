@@ -128,18 +128,7 @@ def verify_email():
     user.verification_code = None
     user.verification_expiry = None
 
-    # Process Referral Rewards
-    referral = Referral.query.filter_by(referred_id=user.id, status='pending').first()
-    if referral:
-        referral.status = 'completed'
-        # Reward Referrer (10 credits)
-        referrer = User.query.get(referral.referrer_id)
-        if referrer:
-            referrer.cert_quota += 10
-        
-        # Reward New User (5 bonus credits)
-        user.cert_quota += 5
-
+    # Note: Referral rewards for referrers are awarded on first payment (10% of purchased credits)
     db.session.commit()
 
     access_token = create_access_token(identity=str(user.id))

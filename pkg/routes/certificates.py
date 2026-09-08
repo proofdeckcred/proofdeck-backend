@@ -13,7 +13,7 @@ from ..models import db, Certificate, Template, User, Tenant, QuotaTransaction
 from ..extensions import mail
 
 # Modular Services & Utils
-from ..services.pdf_service import generate_certificate_pdf
+from ..services.pdf_service import generate_certificate_pdf, generate_certificate_png
 from ..services.email_service import create_certificate_email
 from ..services.bulk_service import process_bulk_upload
 from ..utils.helpers import parse_smart_date, normalize_email, get_active_context
@@ -130,6 +130,58 @@ def get_certificate_pdf(cert_id):
     except Exception as e:
         current_app.logger.error(f"PDF Gen Error: {e}")
         return jsonify({"msg": "Failed to generate PDF"}), 500
+
+
+@certificate_bp.route('/<string:cert_id>/png', methods=['GET'], strict_slashes=False)
+@jwt_required()
+def get_certificate_png(cert_id):
+    """
+    Generates and downloads the high-res PNG image for a specific certificate.
+    Exclusively available for Enterprise plan subscribers.
+    """
+    user_id = int(get_jwt_identity())
+    certificate = _get_certificate(cert_id)
+    user = User.query.get(user_id)
+    
+    # Ownership/multi-tenant check
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        if certificate.tenant_id != tenant_id:
+            return jsonify({"msg": "Permission denied"}), 403
+    else:
+        if certificate.user_id != user_id or certificate.tenant_id is not None:
+            return jsonify({"msg": "Permission denied"}), 403
+
+    # Plan gating: Strictly Enterprise plan only
+    effective_role = user.role
+    if is_comp and hasattr(user, 'owned_tenant') and user.owned_tenant and user.owned_tenant.owner:
+        effective_role = user.owned_tenant.owner.role
+
+    if effective_role != 'enterprise':
+        return jsonify({
+            "msg": "PNG image downloads are exclusively available on the Enterprise plan. Please upgrade your plan to access high-resolution PNG downloads.",
+            "upgrade_required": True,
+            "required_plan": "enterprise"
+        }), 403
+
+    template = Template.query.get(certificate.template_id)
+    issuer = User.query.get(certificate.user_id)
+
+    try:
+        png_buffer = generate_certificate_png(certificate, template, issuer)
+        import re
+        sane_name = re.sub(r'[\W_]+', '_', certificate.recipient_name).strip('_')
+        if not sane_name:
+            sane_name = f"doc_{certificate.verification_id}"
+        filename = f"{sane_name}.png"
+        return Response(
+            png_buffer.getvalue(), 
+            mimetype='image/png', 
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
+    except Exception as e:
+        current_app.logger.error(f"PNG Gen Error: {e}")
+        return jsonify({"msg": "Failed to generate PNG image"}), 500
 
 
 @certificate_bp.route('/', methods=['POST'])

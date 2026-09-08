@@ -200,6 +200,7 @@ class Referral(db.Model):
     referred_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     status = db.Column(db.Enum('pending', 'completed', name='referral_statuses'), default='pending', nullable=False)
     reward_claimed = db.Column(db.Boolean, default=False)
+    credits_earned = db.Column(db.Integer, default=0, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships

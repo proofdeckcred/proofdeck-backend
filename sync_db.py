@@ -15,46 +15,43 @@ with app.app_context():
     db.create_all()
 
     print("2. Checking for missing columns...")
+    from sqlalchemy import inspect
     engine = db.engine
+    dialect = engine.dialect.name
     
     columns_to_check = [
-        ("templates", "tenant_id", "INT NULL"),
-        ("groups", "tenant_id", "INT NULL"),
-        ("certificates", "tenant_id", "INT NULL"),
+        ("templates", "tenant_id", "INT NULL" if dialect != "postgresql" else "INTEGER NULL"),
+        ("groups", "tenant_id", "INT NULL" if dialect != "postgresql" else "INTEGER NULL"),
+        ("certificates", "tenant_id", "INT NULL" if dialect != "postgresql" else "INTEGER NULL"),
         ("users", "referral_code", "VARCHAR(10) NULL"),
-        ("users", "referred_by", "INT NULL"),
+        ("users", "referred_by", "INT NULL" if dialect != "postgresql" else "INTEGER NULL"),
         ("templates", "layout_data", "JSON NULL"),
         ("templates", "is_premium", "BOOLEAN NOT NULL DEFAULT FALSE"),
         ("tenants", "linkedin_org_id", "VARCHAR(50) NULL"),
+        ("referrals", "credits_earned", "INT NOT NULL DEFAULT 0" if dialect != "postgresql" else "INTEGER NOT NULL DEFAULT 0"),
         # BackgroundJob columns
         ("background_jobs", "celery_task_id", "VARCHAR(255) NULL"),
         ("background_jobs", "result_summary", "JSON NULL"),
         # Notification columns
-        ("notifications", "reference_id", "INT NULL"),
+        ("notifications", "reference_id", "INT NULL" if dialect != "postgresql" else "INTEGER NULL"),
     ]
 
-    with engine.connect() as conn:
-        for table, column, col_def in columns_to_check:
-            try:
-                check_sql = text(f"SHOW COLUMNS FROM `{table}` LIKE '{column}'")
-                result = conn.execute(check_sql).fetchone()
-                if not result:
+    try:
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        with engine.connect() as conn:
+            for table, column, col_def in columns_to_check:
+                if table not in tables:
+                    continue
+                col_names = [c['name'] for c in inspector.get_columns(table)]
+                if column not in col_names:
                     print(f"Adding column `{column}` to table `{table}`...")
-                    add_sql = text(f"ALTER TABLE `{table}` ADD COLUMN `{column}` {col_def}")
+                    add_sql = text(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {col_def}' if dialect == "postgresql" else f"ALTER TABLE `{table}` ADD COLUMN `{column}` {col_def}")
                     conn.execute(add_sql)
                     conn.commit()
                 else:
                     print(f"Column `{column}` in `{table}` already exists.")
-            except Exception as e:
-                print(f"Note on `{table}.{column}`: {e}")
-
-    print("3. Updating enum types...")
-    with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE `payments` MODIFY COLUMN `provider` ENUM('paystack', 'stripe', 'bachs') NOT NULL DEFAULT 'paystack'"))
-            conn.commit()
-            print("Payments provider enum updated to include 'bachs'!")
-        except Exception as e:
-            print(f"Note on payments provider enum: {e}")
+    except Exception as e:
+        print(f"Schema column check notice: {e}")
 
     print("Database sync complete!")
