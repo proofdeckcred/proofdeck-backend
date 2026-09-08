@@ -276,11 +276,22 @@ def create_certificate():
                 # Generate PDF using Service
                 pdf_buffer = generate_certificate_pdf(certificate, template, user)
                 
+                # If Enterprise plan, also generate and attach PNG image
+                png_buffer = None
+                effective_role = user.role
+                if is_comp and hasattr(quota_holder, 'owner') and quota_holder.owner:
+                    effective_role = quota_holder.owner.role
+                if effective_role == 'enterprise':
+                    try:
+                        png_buffer = generate_certificate_png(certificate, template, user)
+                    except Exception as pe:
+                        current_app.logger.error(f"PNG generation for email skipped: {pe}")
+
                 # Attach template to object for email service logic (checks if receipt)
                 certificate.template = template 
                 
                 # Create & Send
-                msg = create_certificate_email(certificate, pdf_buffer)
+                msg = create_certificate_email(certificate, pdf_buffer, png_buffer)
                 mail.send(msg)
                 
                 certificate.sent_at = datetime.utcnow()
@@ -618,12 +629,25 @@ def send_certificate_email_route(cert_id):
         
         # Generate PDF
         pdf_buffer = generate_certificate_pdf(certificate, template, issuer)
+
+        # If Enterprise plan, also generate and attach PNG image
+        png_buffer = None
+        user = User.query.get(user_id)
+        is_comp, _, quota_holder, _ = get_active_context(user)
+        effective_role = user.role
+        if is_comp and hasattr(quota_holder, 'owner') and quota_holder.owner:
+            effective_role = quota_holder.owner.role
+        if effective_role == 'enterprise':
+            try:
+                png_buffer = generate_certificate_png(certificate, template, issuer)
+            except Exception as pe:
+                current_app.logger.error(f"PNG generation for email skipped: {pe}")
         
         # Attach template for email logic checks (is_receipt?)
         certificate.template = template
         
         # Create and Send
-        msg = create_certificate_email(certificate, pdf_buffer)
+        msg = create_certificate_email(certificate, pdf_buffer, png_buffer)
         mail.send(msg)
         
         certificate.sent_at = datetime.utcnow()
@@ -651,6 +675,11 @@ def send_bulk_emails():
     sent, errors = 0, []
     certs_to_send = Certificate.query.filter(Certificate.id.in_(certificate_ids), Certificate.user_id == user_id).all()
     
+    is_comp, _, quota_holder, _ = get_active_context(user)
+    effective_role = user.role
+    if is_comp and hasattr(quota_holder, 'owner') and quota_holder.owner:
+        effective_role = quota_holder.owner.role
+
     for cert in certs_to_send:
         if not cert.recipient_email:
             errors.append({"id": cert.id, "msg": "No email address"})
@@ -659,8 +688,16 @@ def send_bulk_emails():
             template = Template.query.get(cert.template_id)
             pdf_buffer = generate_certificate_pdf(cert, template, user)
             
+            # If Enterprise plan, also generate PNG
+            png_buffer = None
+            if effective_role == 'enterprise':
+                try:
+                    png_buffer = generate_certificate_png(cert, template, user)
+                except Exception as pe:
+                    current_app.logger.error(f"PNG generation for bulk email skipped: {pe}")
+
             cert.template = template
-            msg = create_certificate_email(cert, pdf_buffer)
+            msg = create_certificate_email(cert, pdf_buffer, png_buffer)
             mail.send(msg)
             
             cert.sent_at = datetime.utcnow()

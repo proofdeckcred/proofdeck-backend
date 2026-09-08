@@ -369,14 +369,22 @@ def generate_certificate_png(certificate, template, issuer, dpi=300):
     Exclusively available for Enterprise plan members.
     """
     try:
-        import fitz
+        try:
+            import fitz
+        except ImportError:
+            import pymupdf as fitz
+
         pdf_buffer = generate_certificate_pdf(certificate, template, issuer)
-        doc = fitz.open(stream=pdf_buffer.getvalue(), filetype="pdf")
+        pdf_bytes = pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else bytes(pdf_buffer)
+        
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         page = doc.load_page(0)
         pix = page.get_pixmap(dpi=dpi)
         png_buffer = BytesIO(pix.tobytes("png"))
         png_buffer.seek(0)
+        doc.close()
         return png_buffer
     except Exception as e:
-        current_app.logger.error(f"PNG Generation error: {e}")
+        import traceback
+        current_app.logger.error(f"PNG Generation error: {e}\n{traceback.format_exc()}")
         raise

@@ -1,7 +1,7 @@
 from flask_mail import Message
 from flask import current_app
 
-def create_certificate_email(certificate, pdf_buffer):
+def create_certificate_email(certificate, pdf_buffer, png_buffer=None):
     verification_url = f"{current_app.config['FRONTEND_URL']}/verify/{certificate.verification_id}"
     
     # Determine wording based on type (Receipt vs Certificate)
@@ -58,7 +58,14 @@ def create_certificate_email(certificate, pdf_buffer):
     )
     
     # Attach PDF
+    pdf_bytes = pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else bytes(pdf_buffer)
     filename = "receipt.pdf" if is_receipt else "certificate.pdf"
-    msg.attach(filename, "application/pdf", pdf_buffer.getvalue())
+    msg.attach(filename, "application/pdf", pdf_bytes)
+    
+    # Attach PNG (For Enterprise plans)
+    if png_buffer:
+        png_bytes = png_buffer.getvalue() if hasattr(png_buffer, 'getvalue') else bytes(png_buffer)
+        image_filename = "receipt.png" if is_receipt else "certificate.png"
+        msg.attach(image_filename, "image/png", png_bytes)
     
     return msg
