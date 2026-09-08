@@ -56,7 +56,7 @@
     {% elif block.type == "image" %}
       <mj-section background-color="#FFFFFF" padding="8px 32px 20px 32px">
         <mj-column width="100%">
-          <mj-image src="{{ block.url }}" alt="{{ block.alt | default('ProofDeck Update') }}" border-radius="8px" padding="0" />
+          <mj-image src="{{ block.url }}" {% if block.href or block.link or block.click_url %}href="{{ block.href | default(block.link) | default(block.click_url) }}"{% endif %} alt="{{ block.alt | default('ProofDeck Update') }}" border-radius="8px" padding="0" />
           {% if block.caption %}
           <mj-text align="center" font-size="12px" color="#6B6B7C" padding="8px 0 0 0">
             {{ block.caption }}
