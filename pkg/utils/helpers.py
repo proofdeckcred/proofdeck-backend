@@ -104,3 +104,16 @@ def get_active_context(user):
                 return True, tenant_id, active_tenant, membership.role
             
     return False, None, user, None
+
+def is_enterprise_context(user):
+    """
+    Returns True if the current user or active workspace organization is on the Enterprise plan.
+    Works for both individual enterprise accounts and invited team members in an enterprise workspace.
+    """
+    is_comp, tenant_id, quota_holder, _ = get_active_context(user)
+    if is_comp and quota_holder:
+        # Check tenant owner's plan
+        owner = getattr(quota_holder, 'owner', None)
+        if owner and owner.role == 'enterprise':
+            return True
+    return user.role == 'enterprise'

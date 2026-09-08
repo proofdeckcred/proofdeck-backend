@@ -48,11 +48,17 @@ def get_current_user():
             "cert_quota": m.tenant.cert_quota
         })
 
+    from ..utils.helpers import is_enterprise_context
+    enterprise_mode = is_enterprise_context(user)
+    effective_role = 'enterprise' if enterprise_mode else (quota_holder.owner.role if (is_comp and hasattr(quota_holder, 'owner') and quota_holder.owner) else user.role)
+
     return jsonify({
         "id": user.id,
         "name": user.name,
         "email": user.email,
         "role": user.role,
+        "effective_role": effective_role,
+        "is_enterprise": enterprise_mode,
         "cert_quota": cert_quota,
         "personal_cert_quota": user.cert_quota,
         "signature_image_url": user.signature_image_url,

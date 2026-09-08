@@ -16,7 +16,7 @@ from ..extensions import mail
 from ..services.pdf_service import generate_certificate_pdf, generate_certificate_png
 from ..services.email_service import create_certificate_email
 from ..services.bulk_service import process_bulk_upload
-from ..utils.helpers import parse_smart_date, normalize_email, get_active_context
+from ..utils.helpers import parse_smart_date, normalize_email, get_active_context, is_enterprise_context
 
 certificate_bp = Blueprint('certificates', __name__)
 
@@ -152,12 +152,8 @@ def get_certificate_png(cert_id):
         if certificate.user_id != user_id or certificate.tenant_id is not None:
             return jsonify({"msg": "Permission denied"}), 403
 
-    # Plan gating: Strictly Enterprise plan only
-    effective_role = user.role
-    if is_comp and hasattr(user, 'owned_tenant') and user.owned_tenant and user.owned_tenant.owner:
-        effective_role = user.owned_tenant.owner.role
-
-    if effective_role != 'enterprise':
+    # Plan gating: Strictly Enterprise plan only (individual enterprise or enterprise workspace)
+    if not is_enterprise_context(user):
         return jsonify({
             "msg": "PNG image downloads are exclusively available on the Enterprise plan. Please upgrade your plan to access high-resolution PNG downloads.",
             "upgrade_required": True,
@@ -278,10 +274,7 @@ def create_certificate():
                 
                 # If Enterprise plan, also generate and attach PNG image
                 png_buffer = None
-                effective_role = user.role
-                if is_comp and hasattr(quota_holder, 'owner') and quota_holder.owner:
-                    effective_role = quota_holder.owner.role
-                if effective_role == 'enterprise':
+                if is_enterprise_context(user):
                     try:
                         png_buffer = generate_certificate_png(certificate, template, user)
                     except Exception as pe:
@@ -633,11 +626,7 @@ def send_certificate_email_route(cert_id):
         # If Enterprise plan, also generate and attach PNG image
         png_buffer = None
         user = User.query.get(user_id)
-        is_comp, _, quota_holder, _ = get_active_context(user)
-        effective_role = user.role
-        if is_comp and hasattr(quota_holder, 'owner') and quota_holder.owner:
-            effective_role = quota_holder.owner.role
-        if effective_role == 'enterprise':
+        if is_enterprise_context(user):
             try:
                 png_buffer = generate_certificate_png(certificate, template, issuer)
             except Exception as pe:
@@ -675,10 +664,7 @@ def send_bulk_emails():
     sent, errors = 0, []
     certs_to_send = Certificate.query.filter(Certificate.id.in_(certificate_ids), Certificate.user_id == user_id).all()
     
-    is_comp, _, quota_holder, _ = get_active_context(user)
-    effective_role = user.role
-    if is_comp and hasattr(quota_holder, 'owner') and quota_holder.owner:
-        effective_role = quota_holder.owner.role
+    is_enterprise = is_enterprise_context(user)
 
     for cert in certs_to_send:
         if not cert.recipient_email:
@@ -690,7 +676,7 @@ def send_bulk_emails():
             
             # If Enterprise plan, also generate PNG
             png_buffer = None
-            if effective_role == 'enterprise':
+            if is_enterprise:
                 try:
                     png_buffer = generate_certificate_png(cert, template, user)
                 except Exception as pe:
