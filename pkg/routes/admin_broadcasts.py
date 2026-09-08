@@ -155,7 +155,8 @@ def test_send_broadcast(campaign_id):
 
     try:
         campaign = BroadcastCampaign.query.get_or_404(campaign_id)
-        rendered = render_broadcast_campaign(campaign)
+        test_user = User.query.filter_by(email=test_email).first()
+        rendered = render_broadcast_campaign(campaign, user=test_user)
 
         test_subject = f"[TEST PREVIEW] {rendered['subject']}"
         res = send_promotional_email(

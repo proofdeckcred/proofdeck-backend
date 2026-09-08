@@ -65,7 +65,7 @@
           <a href="{{ unsubscribe_url | default('https://www.proofdeck.app/email/unsubscribe') }}" style="color: #6B6B7C; text-decoration: underline; margin-left: 12px;">Unsubscribe</a>
         </mj-text>
         <mj-text align="center" font-size="11px" line-height="16px" color="#9CA3AF" padding="16px 0 0 0">
-          &copy; {{ current_year | default(2026) }} ProofDeck Inc. All rights reserved.
+          &copy; {{ current_year | default(2026) }} ProofDeck. All rights reserved.
         </mj-text>
       </mj-column>
     </mj-section>

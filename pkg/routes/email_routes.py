@@ -14,6 +14,16 @@ def get_email_preferences():
     if not token:
         return jsonify({"msg": "Missing token"}), 400
 
+    if token == 'preview' or token.startswith('preview'):
+        return jsonify({
+            "email": "sample-recipient@proofdeck.app",
+            "name": "Sample Recipient (Preview)",
+            "weekly_digest_opt_in": True,
+            "promotions_opt_in": True,
+            "unsubscribed_all": False,
+            "is_preview": True
+        }), 200
+
     pref = EmailPreference.query.filter_by(unsubscribe_token=token).first()
     if not pref:
         return jsonify({"msg": "Invalid or expired preferences link"}), 404
@@ -36,6 +46,9 @@ def update_email_preferences():
     token = data.get('token')
     if not token:
         return jsonify({"msg": "Missing token"}), 400
+
+    if token == 'preview' or token.startswith('preview'):
+        return jsonify({"msg": "Preferences saved (Preview Mode)."}), 200
 
     pref = EmailPreference.query.filter_by(unsubscribe_token=token).first()
     if not pref:

@@ -20,11 +20,16 @@ def get_iso_week_key(dt=None):
     year, week, _ = dt.isocalendar()
     return f"{year}-W{week:02d}"
 
-def get_user_unsubscribe_urls(user):
+def get_user_unsubscribe_urls(user=None):
+    frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
+    if not user or not hasattr(user, 'id'):
+        return {
+            "unsubscribe_url": f"{frontend_url}/email/unsubscribe?token=preview",
+            "preferences_url": f"{frontend_url}/email/unsubscribe?token=preview"
+        }
     pref = EmailPreference.query.filter_by(user_id=user.id).first()
     if not pref:
         pref = user.get_or_create_email_preferences()
-    frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
     token = pref.unsubscribe_token
     return {
         "unsubscribe_url": f"{frontend_url}/email/unsubscribe?token={token}",
@@ -155,15 +160,12 @@ def render_broadcast_campaign(campaign, user=None, custom_blocks=None):
 
     frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
 
-    if user:
+    if user and hasattr(user, 'id'):
         urls = get_user_unsubscribe_urls(user)
         user_name = user.name or 'Colleague'
     else:
-        urls = {
-            "unsubscribe_url": f"{frontend_url}/email/unsubscribe",
-            "preferences_url": f"{frontend_url}/dashboard/settings"
-        }
-        user_name = "ProofDeck Partner"
+        urls = get_user_unsubscribe_urls(user)
+        user_name = getattr(user, 'name', 'ProofDeck Partner') if user else 'ProofDeck Partner'
 
     # Personalize blocks and subject
     personalized_blocks = []
