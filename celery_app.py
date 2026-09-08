@@ -21,13 +21,17 @@ def get_flask_app():
         from pkg import create_app
         _flask_app = create_app()
     return _flask_app
-
 if HAS_CELERY:
+    from celery.schedules import crontab
+
     celery = Celery(
         'proofdeck',
         broker=redis_url,
         backend=redis_url,
-        include=['pkg.tasks.bulk_tasks']
+        include=[
+            'pkg.tasks.bulk_tasks',
+            'pkg.tasks.email_tasks'
+        ]
     )
 
     celery.conf.update(
@@ -39,6 +43,18 @@ if HAS_CELERY:
         task_track_started=True,
         task_acks_late=True,
         worker_prefetch_multiplier=1,
+        beat_schedule={
+            # Surface 1: Weekly Digest every Monday at 8:00 AM UTC
+            'weekly-digest-monday-8am': {
+                'task': 'pkg.tasks.email_tasks.scan_and_enqueue_weekly_digests',
+                'schedule': crontab(minute=0, hour=8, day_of_week=1),
+            },
+            # Surface 3: Win-back scan daily at 10:00 AM UTC
+            'winback-inactivity-scan-daily': {
+                'task': 'pkg.tasks.email_tasks.scan_and_enqueue_winbacks',
+                'schedule': crontab(minute=0, hour=10),
+            },
+        }
     )
 
     class FlaskContextTask(celery.Task):

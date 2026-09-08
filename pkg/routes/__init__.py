@@ -27,12 +27,15 @@ from .admin_companies import admin_companies_bp
 from .admin_messaging import admin_messaging_bp
 from .admin_team import admin_team_bp
 from .admin_system import admin_system_bp
+from .admin_broadcasts import admin_broadcasts_bp
+from .email_routes import email_routes_bp
 
 def register_blueprints(app):
     """
     Registers all imported blueprints with the Flask application.
     """
     # Public/User-facing blueprints
+    app.register_blueprint(email_routes_bp, url_prefix='/api')
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(template_bp, url_prefix='/api/templates')
     app.register_blueprint(certificate_bp, url_prefix='/api/certificates')
@@ -61,6 +64,7 @@ def register_blueprints(app):
     app.register_blueprint(admin_support_bp, url_prefix='/api/admin')
     app.register_blueprint(admin_companies_bp, url_prefix='/api/admin')
     app.register_blueprint(admin_messaging_bp, url_prefix='/api/admin')
+    app.register_blueprint(admin_broadcasts_bp, url_prefix='/api/admin')
     app.register_blueprint(admin_team_bp, url_prefix='/api/admin')
     app.register_blueprint(admin_system_bp, url_prefix='/api/admin')
 

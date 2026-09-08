@@ -78,6 +78,8 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
+    last_active_at = db.Column(db.DateTime, nullable=True)
+    last_winback_sent_at = db.Column(db.DateTime, nullable=True)
     is_verified = db.Column(db.Boolean, default=True, nullable=False)
     verification_code = db.Column(db.String(6), nullable=True)
     verification_expiry = db.Column(db.DateTime, nullable=True)
@@ -92,6 +94,21 @@ class User(db.Model):
     def set_verification_code(self):
         self.verification_code = str(random.randint(100000, 999999))
         self.verification_expiry = datetime.utcnow() + timedelta(minutes=15)
+
+    def get_or_create_email_preferences(self):
+        import secrets
+        pref = EmailPreference.query.filter_by(user_id=self.id).first()
+        if not pref:
+            pref = EmailPreference(
+                user_id=self.id,
+                unsubscribe_token=secrets.token_urlsafe(32),
+                weekly_digest_opt_in=True,
+                promotions_opt_in=True,
+                unsubscribed_all=False
+            )
+            db.session.add(pref)
+            db.session.commit()
+        return pref
 
 class SupportTicket(db.Model):
     __tablename__ = 'support_tickets'
@@ -288,3 +305,54 @@ class Notification(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref=db.backref('notifications', lazy=True))
+
+class EmailPreference(db.Model):
+    __tablename__ = 'email_preferences'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), unique=True, nullable=False)
+    weekly_digest_opt_in = db.Column(db.Boolean, default=True, nullable=False)
+    promotions_opt_in = db.Column(db.Boolean, default=True, nullable=False)
+    unsubscribed_all = db.Column(db.Boolean, default=False, nullable=False)
+    unsubscribe_token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('email_preferences', uselist=False, lazy=True))
+
+class BroadcastCampaign(db.Model):
+    __tablename__ = 'broadcast_campaigns'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    subject = db.Column(db.String(255), nullable=False)
+    tag = db.Column(db.String(50), nullable=True, default='ANNOUNCEMENT')
+    opening_why = db.Column(db.Text, nullable=True)
+    content_blocks = db.Column(db.JSON, nullable=False, default=list)
+    segment = db.Column(db.String(50), default='all', nullable=False)  # all, active, inactive
+    status = db.Column(db.Enum('draft', 'scheduled', 'sending', 'sent', name='campaign_statuses'), default='draft', nullable=False)
+    test_sent_to = db.Column(db.String(120), nullable=True)
+    test_sent_at = db.Column(db.DateTime, nullable=True)
+    total_recipients = db.Column(db.Integer, default=0, nullable=False)
+    sent_count = db.Column(db.Integer, default=0, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('admins.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    scheduled_at = db.Column(db.DateTime, nullable=True)
+    sent_at = db.Column(db.DateTime, nullable=True)
+
+    creator = db.relationship('Admin', backref='broadcast_campaigns')
+
+class EmailLog(db.Model):
+    __tablename__ = 'email_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    recipient_email = db.Column(db.String(120), nullable=False, index=True)
+    template_name = db.Column(db.String(100), nullable=False, index=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('broadcast_campaigns.id', ondelete='SET NULL'), nullable=True, index=True)
+    period_key = db.Column(db.String(50), nullable=True, index=True)  # e.g. "2026-W37" for weekly digest idempotency
+    provider_message_id = db.Column(db.String(255), nullable=True, index=True)
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    opened_at = db.Column(db.DateTime, nullable=True)
+    clicked_at = db.Column(db.DateTime, nullable=True)
+    bounced_at = db.Column(db.DateTime, nullable=True)
+    complained_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship('User', backref=db.backref('email_logs', lazy='dynamic'))
+    campaign = db.relationship('BroadcastCampaign', backref=db.backref('email_logs', lazy='dynamic'))

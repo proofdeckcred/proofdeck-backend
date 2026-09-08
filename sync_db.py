@@ -34,6 +34,9 @@ with app.app_context():
         ("background_jobs", "result_summary", "JSON NULL"),
         # Notification columns
         ("notifications", "reference_id", "INT NULL" if dialect != "postgresql" else "INTEGER NULL"),
+        # User activity columns for Email Promotions & Digests
+        ("users", "last_active_at", "TIMESTAMP NULL" if dialect == "postgresql" else "DATETIME NULL"),
+        ("users", "last_winback_sent_at", "TIMESTAMP NULL" if dialect == "postgresql" else "DATETIME NULL"),
     ]
 
     try:
