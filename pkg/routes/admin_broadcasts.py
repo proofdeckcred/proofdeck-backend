@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, current_user
 from datetime import datetime, timedelta, timezone
-from ..models import db, Admin, User, BroadcastCampaign, EmailLog
+from ..models import db, Admin, User, BroadcastCampaign, EmailLog, Tenant, Membership
 from ..services.email_renderer import render_broadcast_campaign
 from ..services.resend_service import send_promotional_email
 from ..tasks.email_tasks import dispatch_broadcast_batch
@@ -22,14 +22,21 @@ def list_broadcast_campaigns():
         clicks = EmailLog.query.filter(EmailLog.campaign_id == c.id, EmailLog.clicked_at != None).count()
         bounces = EmailLog.query.filter(EmailLog.campaign_id == c.id, EmailLog.bounced_at != None).count()
 
+        meta_block = next((b for b in (c.content_blocks or []) if isinstance(b, dict) and b.get('type') == '_meta'), None)
+        target_companies = meta_block.get('target_companies', []) if meta_block else []
+        target_users = meta_block.get('target_users', []) if meta_block else []
+        clean_blocks = [b for b in (c.content_blocks or []) if not (isinstance(b, dict) and b.get('type') == '_meta')]
+
         results.append({
             "id": c.id,
             "title": c.title,
             "subject": c.subject,
             "tag": c.tag,
             "opening_why": c.opening_why,
-            "content_blocks": c.content_blocks,
+            "content_blocks": clean_blocks,
             "segment": c.segment,
+            "target_companies": target_companies,
+            "target_users": target_users,
             "status": c.status,
             "total_recipients": c.total_recipients,
             "sent_count": c.sent_count,
@@ -52,14 +59,21 @@ def get_broadcast_campaign(campaign_id):
         return jsonify({"msg": "Admin access required"}), 403
 
     c = BroadcastCampaign.query.get_or_404(campaign_id)
+    meta_block = next((b for b in (c.content_blocks or []) if isinstance(b, dict) and b.get('type') == '_meta'), None)
+    target_companies = meta_block.get('target_companies', []) if meta_block else []
+    target_users = meta_block.get('target_users', []) if meta_block else []
+    clean_blocks = [b for b in (c.content_blocks or []) if not (isinstance(b, dict) and b.get('type') == '_meta')]
+
     return jsonify({
         "id": c.id,
         "title": c.title,
         "subject": c.subject,
         "tag": c.tag,
         "opening_why": c.opening_why,
-        "content_blocks": c.content_blocks,
+        "content_blocks": clean_blocks,
         "segment": c.segment,
+        "target_companies": target_companies,
+        "target_users": target_users,
         "status": c.status,
         "total_recipients": c.total_recipients,
         "sent_count": c.sent_count,
@@ -89,6 +103,8 @@ def save_broadcast_campaign():
         except Exception:
             content_blocks = []
     segment = data.get('segment', 'all')
+    target_companies = data.get('target_companies', [])
+    target_users = data.get('target_users', [])
 
     if not title or not subject:
         return jsonify({"msg": "Title and subject line are required"}), 400
@@ -101,11 +117,19 @@ def save_broadcast_campaign():
         campaign = BroadcastCampaign(created_by=current_user.id)
         db.session.add(campaign)
 
+    clean_blocks = [b for b in content_blocks if not (isinstance(b, dict) and b.get('type') == '_meta')]
+    if target_companies or target_users:
+        clean_blocks.insert(0, {
+            'type': '_meta',
+            'target_companies': target_companies,
+            'target_users': target_users
+        })
+
     campaign.title = title
     campaign.subject = subject
     campaign.tag = tag
     campaign.opening_why = opening_why
-    campaign.content_blocks = content_blocks
+    campaign.content_blocks = clean_blocks
     campaign.segment = segment
     db.session.commit()
 
@@ -206,7 +230,33 @@ def trigger_broadcast(campaign_id):
     now = datetime.utcnow()
     base_query = User.query.filter(User.role != 'suspended')
 
-    if campaign.segment == 'active':
+    if campaign.segment == 'companies':
+        meta_block = next((b for b in (campaign.content_blocks or []) if isinstance(b, dict) and b.get('type') == '_meta'), None)
+        company_ids = meta_block.get('target_companies', []) if meta_block else []
+        if company_ids:
+            # Query tenant owners
+            tenant_owners = db.session.query(Tenant.owner_id).filter(Tenant.id.in_(company_ids)).all()
+            owner_ids = [t[0] for t in tenant_owners]
+
+            # Query active members
+            members = db.session.query(Membership.user_id).filter(
+                Membership.tenant_id.in_(company_ids),
+                Membership.status == 'active'
+            ).all()
+            member_ids = [m[0] for m in members]
+
+            target_ids = list(set(owner_ids + member_ids))
+            users = base_query.filter(User.id.in_(target_ids)).all()
+        else:
+            users = []
+    elif campaign.segment == 'users':
+        meta_block = next((b for b in (campaign.content_blocks or []) if isinstance(b, dict) and b.get('type') == '_meta'), None)
+        user_ids = meta_block.get('target_users', []) if meta_block else []
+        if user_ids:
+            users = base_query.filter(User.id.in_(user_ids)).all()
+        else:
+            users = []
+    elif campaign.segment == 'active':
         cutoff = now - timedelta(days=60)
         users = base_query.filter(
             (User.last_active_at >= cutoff) | (User.created_at >= cutoff)

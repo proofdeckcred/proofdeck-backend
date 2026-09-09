@@ -172,6 +172,8 @@ def render_broadcast_campaign(campaign, user=None, custom_blocks=None):
     for b in blocks:
         if not isinstance(b, dict):
             continue
+        if b.get('type') == '_meta':
+            continue
         b_copy = dict(b)
         if 'content' in b_copy and isinstance(b_copy['content'], str):
             b_copy['content'] = b_copy['content'].replace('{{ user_name }}', user_name)

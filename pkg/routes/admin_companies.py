@@ -21,6 +21,7 @@ def get_companies():
     query = db.session.query(
         Tenant,
         Owner.name.label('owner_name'),
+        Owner.email.label('owner_email'),
         func.count(Membership.id).label('member_count')
     ).join(
         Owner, Tenant.owner_id == Owner.id
@@ -30,9 +31,9 @@ def get_companies():
 
     if search:
         search_term = f'%{search}%'
-        query = query.filter(or_(Tenant.name.ilike(search_term), Owner.name.ilike(search_term)))
+        query = query.filter(or_(Tenant.name.ilike(search_term), Owner.name.ilike(search_term), Owner.email.ilike(search_term)))
         
-    query = query.group_by(Tenant.id, Owner.name).order_by(Tenant.created_at.desc())
+    query = query.group_by(Tenant.id, Owner.name, Owner.email).order_by(Tenant.created_at.desc())
     
     paginated_results = query.paginate(page=page, per_page=limit, error_out=False)
     
@@ -40,9 +41,10 @@ def get_companies():
         'id': tenant.id,
         'name': tenant.name,
         'owner_name': owner_name,
+        'owner_email': owner_email,
         'member_count': member_count,
         'created_at': tenant.created_at.isoformat()
-    } for tenant, owner_name, member_count in paginated_results.items]
+    } for tenant, owner_name, owner_email, member_count in paginated_results.items]
 
     return jsonify({
         'companies': results,
