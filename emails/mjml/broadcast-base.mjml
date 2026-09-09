@@ -65,6 +65,29 @@
         </mj-column>
       </mj-section>
 
+    {% elif block.type == "video" %}
+      <mj-section background-color="#FFFFFF" padding="8px 32px 20px 32px">
+        <mj-column width="100%">
+          <mj-raw>
+            <div style="background-color: #0F0E17; border-radius: 12px; overflow: hidden; border: 1px solid #E5E7EB; text-align: center; position: relative; max-width: 536px; margin: 0 auto;">
+              <a href="{{ block.url }}" target="_blank" style="display: block; text-decoration: none; position: relative;">
+                <img src="{{ block.thumbnail_url }}" alt="{{ block.title | default('Watch Video') }}" style="width: 100%; height: auto; max-height: 320px; display: block; object-fit: cover;" />
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); -webkit-transform: translate(-50%, -50%); width: 68px; height: 48px; background-color: rgba(220, 38, 38, 0.92); border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); text-align: center; line-height: 48px;">
+                  <span style="color: #ffffff; font-size: 22px; line-height: 48px; display: inline-block; margin-left: 3px;">&#9658;</span>
+                </div>
+              </a>
+            </div>
+          </mj-raw>
+          {% if block.title or block.caption %}
+          <mj-text align="center" font-size="13px" font-weight="600" color="#374151" padding="10px 0 0 0">
+            <a href="{{ block.url }}" target="_blank" style="color: #5B4CF5; text-decoration: none;">
+              &#9654; {{ block.title | default(block.caption) }}
+            </a>
+          </mj-text>
+          {% endif %}
+        </mj-column>
+      </mj-section>
+
     {% elif block.type == "button" %}
       <mj-section background-color="#FFFFFF" padding="16px 32px 24px 32px">
         <mj-column width="100%">

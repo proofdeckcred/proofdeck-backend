@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 from datetime import datetime, timedelta, timezone
 from flask import current_app
 from sqlalchemy import func
@@ -21,7 +22,10 @@ def get_iso_week_key(dt=None):
     return f"{year}-W{week:02d}"
 
 def get_user_unsubscribe_urls(user=None):
-    frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
+    try:
+        frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
+    except Exception:
+        frontend_url = 'https://www.proofdeck.app'
     if not user or not hasattr(user, 'id'):
         return {
             "unsubscribe_url": f"{frontend_url}/email/unsubscribe?token=preview",
@@ -158,7 +162,10 @@ def render_broadcast_campaign(campaign, user=None, custom_blocks=None):
     else:
         blocks = []
 
-    frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
+    try:
+        frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
+    except Exception:
+        frontend_url = 'https://www.proofdeck.app'
 
     if user and hasattr(user, 'id'):
         urls = get_user_unsubscribe_urls(user)
@@ -176,13 +183,38 @@ def render_broadcast_campaign(campaign, user=None, custom_blocks=None):
             continue
         b_copy = dict(b)
         if 'content' in b_copy and isinstance(b_copy['content'], str):
-            b_copy['content'] = b_copy['content'].replace('{{ user_name }}', user_name)
+            content = b_copy['content']
+            if user_name:
+                content = content.replace('{{ user_name }}', user_name)
+            # Auto-convert Markdown links [text](url) to styled email-safe HTML links
+            content = re.sub(
+                r'\[([^\]]+)\]\((https?://[^\)]+)\)',
+                r'<a href="\2" target="_blank" style="color: #5B4CF5; font-weight: 600; text-decoration: underline;">\1</a>',
+                content
+            )
+            b_copy['content'] = content
+
+        if b_copy.get('type') == 'video':
+            video_url = b_copy.get('url', '')
+            if not b_copy.get('thumbnail_url') and video_url:
+                yt_match = re.search(r'(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})', video_url)
+                if yt_match:
+                    video_id = yt_match.group(1)
+                    b_copy['thumbnail_url'] = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
+                else:
+                    b_copy['thumbnail_url'] = "https://www.proofdeck.app/images/landing_page_image/dashboard.png"
+
         personalized_blocks.append(b_copy)
 
     headline = campaign.title or campaign.subject
     opening_why = campaign.opening_why or ""
     if user_name and '{{ user_name }}' in opening_why:
         opening_why = opening_why.replace('{{ user_name }}', user_name)
+    opening_why = re.sub(
+        r'\[([^\]]+)\]\((https?://[^\)]+)\)',
+        r'<a href="\2" target="_blank" style="color: #5B4CF5; font-weight: 600; text-decoration: underline;">\1</a>',
+        opening_why
+    )
 
     context = {
         "email_title": campaign.subject,
