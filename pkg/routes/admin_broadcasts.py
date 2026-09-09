@@ -230,30 +230,28 @@ def trigger_broadcast(campaign_id):
     now = datetime.utcnow()
     base_query = User.query.filter(User.role != 'suspended')
 
-    if campaign.segment == 'companies':
+    if campaign.segment in ['companies', 'users', 'custom']:
         meta_block = next((b for b in (campaign.content_blocks or []) if isinstance(b, dict) and b.get('type') == '_meta'), None)
-        company_ids = meta_block.get('target_companies', []) if meta_block else []
-        if company_ids:
-            # Query tenant owners
-            tenant_owners = db.session.query(Tenant.owner_id).filter(Tenant.id.in_(company_ids)).all()
-            owner_ids = [t[0] for t in tenant_owners]
+        target_ids = set()
+        if meta_block:
+            if campaign.segment in ['companies', 'custom']:
+                company_ids = meta_block.get('target_companies', [])
+                if company_ids:
+                    tenant_owners = db.session.query(Tenant.owner_id).filter(Tenant.id.in_(company_ids)).all()
+                    target_ids.update([t[0] for t in tenant_owners])
+                    members = db.session.query(Membership.user_id).filter(
+                        Membership.tenant_id.in_(company_ids),
+                        Membership.status == 'active'
+                    ).all()
+                    target_ids.update([m[0] for m in members])
 
-            # Query active members
-            members = db.session.query(Membership.user_id).filter(
-                Membership.tenant_id.in_(company_ids),
-                Membership.status == 'active'
-            ).all()
-            member_ids = [m[0] for m in members]
+            if campaign.segment in ['users', 'custom']:
+                user_ids = meta_block.get('target_users', [])
+                if user_ids:
+                    target_ids.update(user_ids)
 
-            target_ids = list(set(owner_ids + member_ids))
-            users = base_query.filter(User.id.in_(target_ids)).all()
-        else:
-            users = []
-    elif campaign.segment == 'users':
-        meta_block = next((b for b in (campaign.content_blocks or []) if isinstance(b, dict) and b.get('type') == '_meta'), None)
-        user_ids = meta_block.get('target_users', []) if meta_block else []
-        if user_ids:
-            users = base_query.filter(User.id.in_(user_ids)).all()
+        if target_ids:
+            users = base_query.filter(User.id.in_(list(target_ids))).all()
         else:
             users = []
     elif campaign.segment == 'active':
