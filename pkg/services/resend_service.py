@@ -14,6 +14,13 @@ def get_promotions_sender():
     """
     return os.environ.get('MAIL_PROMOTIONS_SENDER', 'ProofDeck <hello@mail.proofdeck.app>')
 
+def get_reply_to_email():
+    """
+    Returns the email address where direct recipient replies are routed.
+    Defaults to support@proofdeck.app (or ADMIN_EMAIL).
+    """
+    return os.environ.get('MAIL_REPLY_TO') or os.environ.get('ADMIN_EMAIL') or 'support@proofdeck.app'
+
 def get_resend_api_key():
     """
     Retrieves the Resend API key from RESEND_API_KEY or MAIL_PASSWORD if it is a Resend key.
@@ -84,12 +91,14 @@ def send_promotional_email(
     unsub_url = f"{frontend_url}/email/unsubscribe?token={token}" if token else f"{frontend_url}/email/unsubscribe"
 
     sender = get_promotions_sender()
+    reply_to = get_reply_to_email()
     api_key = get_resend_api_key()
     provider_message_id = None
 
     headers = {
         "List-Unsubscribe": f"<{unsub_url}>, <mailto:unsubscribe@mail.proofdeck.app?subject=unsubscribe>",
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        "Reply-To": reply_to
     }
 
     # 2. Dispatch via Resend REST API if key is available
@@ -97,6 +106,7 @@ def send_promotional_email(
         payload = {
             "from": sender,
             "to": [to_email],
+            "reply_to": reply_to,
             "subject": subject,
             "html": html_content,
             "headers": headers,
@@ -121,13 +131,13 @@ def send_promotional_email(
                 current_app.logger.info(f"Successfully sent {template_name} to {to_email} via Resend API (ID: {provider_message_id})")
             else:
                 current_app.logger.warning(f"Resend API returned {res.status_code}: {res.text}. Falling back to Flask-Mail.")
-                provider_message_id = _send_via_flask_mail(to_email, subject, html_content, text_content, sender, headers)
+                provider_message_id = _send_via_flask_mail(to_email, subject, html_content, text_content, sender, headers, reply_to=reply_to)
         except Exception as e:
             current_app.logger.warning(f"Resend API request failed: {e}. Falling back to Flask-Mail.")
-            provider_message_id = _send_via_flask_mail(to_email, subject, html_content, text_content, sender, headers)
+            provider_message_id = _send_via_flask_mail(to_email, subject, html_content, text_content, sender, headers, reply_to=reply_to)
     else:
         # 3. Dispatch via Flask-Mail SMTP
-        provider_message_id = _send_via_flask_mail(to_email, subject, html_content, text_content, sender, headers)
+        provider_message_id = _send_via_flask_mail(to_email, subject, html_content, text_content, sender, headers, reply_to=reply_to)
 
     # 4. Log send to EmailLog table
     try:
@@ -158,7 +168,7 @@ def send_promotional_email(
         "provider_message_id": provider_message_id
     }
 
-def _send_via_flask_mail(to_email, subject, html_content, text_content, sender, extra_headers):
+def _send_via_flask_mail(to_email, subject, html_content, text_content, sender, extra_headers, reply_to=None):
     clean_sender = sender
     sender_name = "ProofDeck"
     if '<' in sender and '>' in sender:
@@ -169,6 +179,7 @@ def _send_via_flask_mail(to_email, subject, html_content, text_content, sender, 
         subject=subject,
         sender=(sender_name, clean_sender),
         recipients=[to_email],
+        reply_to=reply_to,
         html=html_content,
         body=text_content,
         extra_headers=extra_headers
