@@ -113,6 +113,8 @@ def save_broadcast_campaign():
         campaign = BroadcastCampaign.query.get_or_404(campaign_id)
         if campaign.status == 'sent':
             return jsonify({"msg": "Cannot edit a campaign that has already been sent"}), 400
+        if campaign.status == 'sending':
+            campaign.status = 'draft'
     else:
         campaign = BroadcastCampaign(created_by=current_user.id)
         db.session.add(campaign)
@@ -217,8 +219,15 @@ def trigger_broadcast(campaign_id):
         return jsonify({"msg": "Admin access required"}), 403
 
     campaign = BroadcastCampaign.query.get_or_404(campaign_id)
-    if campaign.status in ['sending', 'sent']:
-        return jsonify({"msg": f"Campaign is already in '{campaign.status}' state"}), 400
+    if campaign.status == 'sent':
+        return jsonify({"msg": "Campaign has already completed dispatching to all recipients."}), 400
+
+    force = (request.get_json() or {}).get('force', False)
+    if campaign.status == 'sending' and not force:
+        # If it has sent some emails and is actively sending, warn the admin:
+        if (campaign.sent_count or 0) > 0 and campaign.sent_count < (campaign.total_recipients or 0):
+            return jsonify({"msg": f"Campaign is currently dispatching ({campaign.sent_count}/{campaign.total_recipients})."}), 400
+        # If stuck on 0 sent, allow auto-recovery
 
     # Mandatory Test-Send Safeguard
     if not campaign.test_sent_at:
@@ -268,6 +277,11 @@ def trigger_broadcast(campaign_id):
         users = base_query.all()
 
     recipient_ids = [u.id for u in users]
+    if not recipient_ids:
+        return jsonify({
+            "msg": "No eligible recipients found for this target selection. Please select at least one active user or company."
+        }), 400
+
     campaign.total_recipients = len(recipient_ids)
     campaign.status = 'sending'
     db.session.commit()
@@ -282,4 +296,29 @@ def trigger_broadcast(campaign_id):
         "msg": f"Broadcast enqueued for {len(recipient_ids)} recipients.",
         "campaign_id": campaign.id,
         "total_recipients": len(recipient_ids)
+    }), 200
+
+@admin_broadcasts_bp.route('/broadcasts/<int:campaign_id>/reset', methods=['POST'])
+@jwt_required()
+def reset_broadcast_campaign(campaign_id):
+    """
+    Resets a campaign that was stuck in 'sending' back to 'draft'
+    so it can be edited, re-targeted, and re-dispatched.
+    """
+    if not isinstance(current_user, Admin):
+        return jsonify({"msg": "Admin access required"}), 403
+
+    campaign = BroadcastCampaign.query.get_or_404(campaign_id)
+    if campaign.status == 'sent':
+        return jsonify({"msg": "Cannot reset a campaign that has already completed sending."}), 400
+
+    campaign.status = 'draft'
+    campaign.sent_count = 0
+    campaign.total_recipients = 0
+    db.session.commit()
+
+    return jsonify({
+        "msg": f"Campaign '{campaign.title}' has been reset to draft. You can now edit and re-send it.",
+        "id": campaign.id,
+        "status": campaign.status
     }), 200

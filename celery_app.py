@@ -44,16 +44,9 @@ if HAS_CELERY:
         task_acks_late=True,
         worker_prefetch_multiplier=1,
         beat_schedule={
-            # Surface 1: Weekly Digest every Monday at 8:00 AM UTC
-            'weekly-digest-monday-8am': {
-                'task': 'pkg.tasks.email_tasks.scan_and_enqueue_weekly_digests',
-                'schedule': crontab(minute=0, hour=8, day_of_week=1),
-            },
-            # Surface 3: Win-back scan daily at 10:00 AM UTC
-            'winback-inactivity-scan-daily': {
-                'task': 'pkg.tasks.email_tasks.scan_and_enqueue_winbacks',
-                'schedule': crontab(minute=0, hour=10),
-            },
+            # NOTE: Automated background email scans (win-back & weekly digest) are disabled
+            # to prevent unauthorized emails and protect the Resend daily quota.
+            # All email campaigns should be explicitly composed and sent via the Admin Broadcast dashboard.
         }
     )
 
