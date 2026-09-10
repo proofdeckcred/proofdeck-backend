@@ -89,7 +89,7 @@ def save_broadcast_campaign():
     if not isinstance(current_user, Admin):
         return jsonify({"msg": "Admin access required"}), 403
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     campaign_id = data.get('id')
     title = data.get('title')
     subject = data.get('subject')
@@ -150,7 +150,7 @@ def preview_broadcast():
     if not isinstance(current_user, Admin):
         return jsonify({"msg": "Admin access required"}), 403
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     class TempCampaign:
         title = data.get('title', 'Preview Headline')
         subject = data.get('subject', 'Preview Subject Line')
@@ -174,7 +174,7 @@ def test_send_broadcast(campaign_id):
     if not isinstance(current_user, Admin):
         return jsonify({"msg": "Admin access required"}), 403
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     test_email = data.get('test_email') or getattr(current_user, 'email', None)
     if not test_email:
         return jsonify({"msg": "Recipient test email is required"}), 400
@@ -222,7 +222,7 @@ def trigger_broadcast(campaign_id):
     if campaign.status == 'sent':
         return jsonify({"msg": "Campaign has already completed dispatching to all recipients."}), 400
 
-    force = (request.get_json() or {}).get('force', False)
+    force = (request.get_json(silent=True) or {}).get('force', False)
     if campaign.status == 'sending' and not force:
         # If it has sent some emails and is actively sending, warn the admin:
         if (campaign.sent_count or 0) > 0 and campaign.sent_count < (campaign.total_recipients or 0):
