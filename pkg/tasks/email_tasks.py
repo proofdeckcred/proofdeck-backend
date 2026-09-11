@@ -146,6 +146,9 @@ def dispatch_broadcast_batch(self, campaign_id, recipient_ids):
     if not campaign:
         return {"status": "error", "message": f"Campaign {campaign_id} not found"}
 
+    if campaign.status != 'sending':
+        return {"status": "cancelled", "message": f"Campaign {campaign_id} is '{campaign.status}', dispatch aborted."}
+
     users = User.query.filter(User.id.in_(recipient_ids), User.role != 'suspended').all()
     sent_count = 0
 
