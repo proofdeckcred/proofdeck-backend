@@ -239,6 +239,9 @@ def reset_password():
 
         hashed_password = hashpw(new_password.encode('utf-8'), gensalt())
         user.password_hash = hashed_password.decode('utf-8')
+        user.is_verified = True
+        user.verification_code = None
+        user.verification_expiry = None
         db.session.commit()
 
         return jsonify({"msg": "Password has been reset successfully. You can now log in."}), 200
