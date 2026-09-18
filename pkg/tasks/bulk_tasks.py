@@ -136,9 +136,19 @@ def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_
             issuer = str(row.get('issuer_name')) if row.get('issuer_name') else (tenant_name if (is_comp and tenant_name) else user.name)
             sig = str(row.get('signature')) if row.get('signature') else None
 
+            # Capture all extra / custom fields from CSV (e.g. second_signature, amount, etc.)
+            KNOWN_STANDARD_COLUMNS = {
+                'recipient_name', 'recipient_email', 'course_title',
+                'issuer_name', 'issue_date', 'signature'
+            }
             extra_fields = {}
-            if row.get('amount'):
-                extra_fields['amount'] = str(row.get('amount'))
+            for col in df.columns:
+                if col not in KNOWN_STANDARD_COLUMNS:
+                    val = row.get(col)
+                    if val is not None and not (isinstance(val, float) and pd.isna(val)):
+                        val_str = str(val).strip()
+                        if val_str and val_str.lower() != 'nan':
+                            extra_fields[col] = val_str
 
             cert = Certificate(
                 user_id=user.id,

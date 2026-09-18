@@ -346,13 +346,48 @@ def get_certificates():
 def download_bulk_template():
     """
     Returns a CSV template for bulk uploads.
+    If template_id is provided, includes custom placeholders like second_signature.
     """
+    import json
+    import re
+    template_id = request.args.get('template_id')
+    headers = ['recipient_name', 'recipient_email', 'course_title', 'issuer_name', 'issue_date', 'signature']
+    sample_row = ['Jane Doe', 'jane@example.com', 'Web Development', 'Tech Institute', '2026-09-19', 'Dr. Smith']
+
+    if template_id:
+        try:
+            tmpl = Template.query.get(template_id)
+            if tmpl and tmpl.layout_data:
+                ldata = tmpl.layout_data
+                if isinstance(ldata, str):
+                    try:
+                        ldata = json.loads(ldata)
+                    except Exception:
+                        ldata = {}
+                elements = ldata.get('elements', []) if isinstance(ldata, dict) else []
+                custom_keys = []
+                std_keys = {'recipient_name', 'recipient_email', 'course_title', 'issuer_name', 'issue_date', 'signature', 'qr_code', 'verification_id', 'amount'}
+                for el in elements:
+                    txt = el.get('text', '')
+                    matches = re.findall(r'\{\{([a-zA-Z0-9_-]+)\}\}', txt)
+                    for m in matches:
+                        m_clean = m.lower().strip()
+                        if m_clean not in std_keys and m_clean not in custom_keys:
+                            custom_keys.append(m_clean)
+                for ck in custom_keys:
+                    headers.append(ck)
+                    sample_row.append(f"{ck.replace('_', ' ').title()} Name")
+        except Exception:
+            pass
+
+    if 'amount' not in headers:
+        headers.append('amount')
+        sample_row.append('500.00')
+
     output = StringIO()
     writer = csv.writer(output)
-    # Added 'amount' for receipt support
-    headers = ['recipient_name', 'recipient_email', 'course_title', 'issuer_name', 'issue_date', 'signature', 'amount']
     writer.writerow(headers)
-    writer.writerow(['Jane Doe', 'jane@example.com', 'Web Development', 'Tech Institute', '2024-10-22', 'Dr. Smith', '500.00'])
+    writer.writerow(sample_row)
     output.seek(0)
     return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=proofdeck_bulk_template.csv"})
 
