@@ -109,7 +109,17 @@ def generate_certificate_pdf(certificate, template, issuer):
     return _generate_html_pdf(certificate, template, issuer)
 
 def _generate_visual_pdf(certificate, template, issuer):
+    import json
+    import re
     layout_data = template.layout_data or {}
+    if isinstance(layout_data, str):
+        try:
+            layout_data = json.loads(layout_data)
+        except Exception:
+            layout_data = {}
+    elif not isinstance(layout_data, dict):
+        layout_data = {}
+
     elements = layout_data.get('elements', [])
     background = layout_data.get('background', {})
     canvas_config = layout_data.get('canvas', {'width': 842, 'height': 595})
@@ -118,21 +128,39 @@ def _generate_visual_pdf(certificate, template, issuer):
 
     # Prepare dynamic data
     extra = certificate.extra_fields or {}
+    if isinstance(extra, str):
+        try:
+            extra = json.loads(extra)
+        except Exception:
+            extra = {}
+    elif not isinstance(extra, dict):
+        extra = {}
+
     amount_text = extra.get('amount', 'PAID')
 
+    issue_date_str = ""
+    if certificate.issue_date:
+        if hasattr(certificate.issue_date, 'strftime'):
+            issue_date_str = certificate.issue_date.strftime('%B %d, %Y')
+        else:
+            issue_date_str = str(certificate.issue_date)
+
     dynamic_data = {
-        "{{recipient_name}}": certificate.recipient_name,
-        "{{course_title}}": certificate.course_title,
-        "{{issue_date}}": certificate.issue_date.strftime('%B %d, %Y'),
-        "{{issuer_name}}": certificate.issuer_name,
-        "{{verification_id}}": certificate.verification_id,
-        "{{signature}}": certificate.signature or certificate.issuer_name,
+        "{{recipient_name}}": certificate.recipient_name or "",
+        "{{course_title}}": certificate.course_title or "",
+        "{{issue_date}}": issue_date_str,
+        "{{issuer_name}}": certificate.issuer_name or "",
+        "{{verification_id}}": certificate.verification_id or "",
+        "{{signature}}": certificate.signature or certificate.issuer_name or "",
         "{{amount}}": amount_text
     }
     
-    # Merge any other extra fields into dynamic data
+    # Merge any other extra fields into dynamic data (both as-is and formatted)
     for key, val in extra.items():
-        dynamic_data[f"{{{{{key}}}}}"] = val
+        dynamic_data[f"{{{{{key}}}}}"] = str(val) if val is not None else ""
+        # Also support key with spaces if user entered key with underscores, or vice versa
+        clean_key = key.replace('_', ' ')
+        dynamic_data[f"{{{{{clean_key}}}}}"] = str(val) if val is not None else ""
 
     # Generate QR
     qr_base64 = _generate_qr_base64(certificate.verification_id)
@@ -141,8 +169,8 @@ def _generate_visual_pdf(certificate, template, issuer):
     html_elements = []
     for el in elements:
         style = (
-            f'position: absolute; left: {el["x"]}px; top: {el["y"]}px; '
-            f'width: {el["width"]}px; height: {el["height"]}px; '
+            f'position: absolute; left: {el.get("x", 0)}px; top: {el.get("y", 0)}px; '
+            f'width: {el.get("width", 200)}px; height: {el.get("height", 30)}px; '
             f'transform-origin: 0 0; transform: rotate({el.get("rotation", 0)}deg); '
         )
         content = ''
@@ -151,26 +179,40 @@ def _generate_visual_pdf(certificate, template, issuer):
         if el_type == 'text' or el_type == 'placeholder':
             text = el.get('text', '')
             for placeholder, value in dynamic_data.items():
-                 if placeholder in text:
-                    text = text.replace(placeholder, str(value))
+                if placeholder.lower() in text.lower():
+                    pattern = re.compile(re.escape(placeholder), re.IGNORECASE)
+                    text = pattern.sub(str(value), text)
 
             font_style_val = el.get("fontStyle", "normal")
             font_weight = "bold" if "bold" in font_style_val else "normal"
             font_style = "italic" if "italic" in font_style_val else "normal"
 
+            # Vertical and horizontal alignment
+            v_align = el.get('verticalAlign', 'middle')
+            if v_align == 'top':
+                v_align_css = 'align-items: flex-start;'
+            elif v_align == 'bottom':
+                v_align_css = 'align-items: flex-end;'
+            else:
+                v_align_css = 'align-items: center;'
+
+            h_align = el.get('align', 'left')
+            if h_align == 'center':
+                h_align_css = 'justify-content: center; text-align: center;'
+            elif h_align == 'right':
+                h_align_css = 'justify-content: flex-end; text-align: right;'
+            else:
+                h_align_css = 'justify-content: flex-start; text-align: left;'
+
             style += (
                 f'font-family: {el.get("fontFamily", "sans-serif")}; '
                 f'font-size: {el.get("fontSize", 16)}px; '
                 f'color: {el.get("fill", "#000")}; '
-                f'text-align: {el.get("align", "left")}; '
                 f'font-style: {font_style}; '
                 f'font-weight: {font_weight}; '
-                'line-height: 1.2; word-wrap: break-word; display: flex; align-items: center; '
+                f'line-height: 1.2; word-wrap: break-word; display: flex; '
+                f'{v_align_css} {h_align_css} '
             )
-            
-            # Vertical alignment helper
-            if el.get('align') == 'center': style += 'justify-content: center;'
-            elif el.get('align') == 'right': style += 'justify-content: flex-end;'
                 
             content = text.replace('\\n', '<br>').replace('\n', '<br>')
 
@@ -186,12 +228,12 @@ def _generate_visual_pdf(certificate, template, issuer):
     background_style = ''
     if background.get('fill'):
         background_style += f'background-color: {background["fill"]};'
-    if background.get('image'):
-         base64_bg = get_image_as_base64(background["image"])
+    bg_image_path = background.get('image') or template.background_url
+    if bg_image_path:
+         base64_bg = get_image_as_base64(bg_image_path)
          if base64_bg:
             mime_type = "image/png"
-            bg_image_str = background["image"]
-            if bg_image_str.startswith("data:image/svg+xml") or bg_image_str.endswith(".svg"):
+            if bg_image_path.startswith("data:image/svg+xml") or bg_image_path.endswith(".svg"):
                 mime_type = "image/svg+xml"
             background_style += f"background-image: url('data:{mime_type};base64,{base64_bg}'); background-size: cover; background-position: center;"
 

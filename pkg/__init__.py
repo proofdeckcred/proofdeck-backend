@@ -12,21 +12,28 @@ def create_app():
     app = Flask(__name__, template_folder='../templates')
 
     # --- THIS IS THE DEFINITIVE CORS FIX ---
-    # We are explicitly defining all allowed origins and resource paths.
-    # This removes any ambiguity.
+    # Allowed origins
+    ALLOWED_ORIGINS = [
+        "https://www.certifyme.com.ng",
+        "https://certifyme.com.ng",
+        "https://proofdeck.app",
+        "https://www.proofdeck.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
     CORS(
         app,
         resources={
-            r"/api/*": {
-                "origins": ["https://www.certifyme.com.ng", "https://proofdeck.app", "https://www.proofdeck.app", "http://localhost:5173"]
-            },
-            r"/uploads/*": {
-                "origins": ["https://www.certifyme.com.ng", "https://proofdeck.app", "https://www.proofdeck.app", "http://localhost:5173"]
-            }
+            r"/api/*": {"origins": ALLOWED_ORIGINS},
+            r"/uploads/*": {"origins": "*"}
         },
         supports_credentials=True
     )
-    # --- END OF FIX ---
 
     # Load configuration from environment variables
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'hbhfsgbhc67879732rgfguh378264idveydtc34')
@@ -91,7 +98,20 @@ def create_app():
 
     @app.route('/uploads/<path:filename>')
     def serve_upload(filename):
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        response = send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
+
+    @app.after_request
+    def add_cors_headers(response):
+        from flask import request
+        origin = request.headers.get('Origin')
+        if origin and (origin in ALLOWED_ORIGINS or "proofdeck.app" in origin or "certifyme.com.ng" in origin):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+            response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+        return response
 
     register_blueprints(app)
 

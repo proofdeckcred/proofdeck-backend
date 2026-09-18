@@ -109,6 +109,15 @@ def update_custom_template(template_id):
             if 'background' not in layout_data:
                 layout_data['background'] = {}
             layout_data['background']['image'] = background_url
+    else:
+        # Preserve existing background image if not explicitly provided in layout_data
+        bg_image = layout_data.get('background', {}).get('image')
+        if not bg_image and template.background_url:
+            if 'background' not in layout_data:
+                layout_data['background'] = {}
+            layout_data['background']['image'] = template.background_url
+        elif bg_image:
+            template.background_url = bg_image
             
     template.layout_data = layout_data
     flag_modified(template, "layout_data")
@@ -182,6 +191,10 @@ def get_user_templates():
 
     templates_data = []
     for t in templates:
+        ld = t.layout_data
+        if isinstance(ld, str):
+            try: ld = json.loads(ld)
+            except Exception: pass
         templates_data.append({
             'id': t.id,
             'title': t.title,
@@ -192,7 +205,7 @@ def get_user_templates():
             'body_font_color': t.body_font_color,
             'font_family': t.font_family,
             'layout_style': t.layout_style,
-            'layout_data': t.layout_data,
+            'layout_data': ld,
             'is_public': t.is_public,
             'custom_text': t.custom_text
         })
@@ -216,6 +229,11 @@ def get_template(template_id):
             if template.user_id != user_id or template.tenant_id is not None:
                 return jsonify({"msg": "Permission denied"}), 403
 
+    ld = template.layout_data
+    if isinstance(ld, str):
+        try: ld = json.loads(ld)
+        except Exception: pass
+
     return jsonify({
         'id': template.id,
         'title': template.title,
@@ -226,7 +244,7 @@ def get_template(template_id):
         'body_font_color': template.body_font_color,
         'font_family': template.font_family,
         'layout_style': template.layout_style,
-        'layout_data': template.layout_data,
+        'layout_data': ld,
         'is_public': template.is_public,
         'custom_text': template.custom_text
     }), 200
