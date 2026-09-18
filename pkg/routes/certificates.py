@@ -118,18 +118,21 @@ def get_certificate_pdf(cert_id):
         # Use centralized service
         pdf_buffer = generate_certificate_pdf(certificate, template, issuer)
         import re
-        sane_name = re.sub(r'[\W_]+', '_', certificate.recipient_name).strip('_')
+        raw_name = certificate.recipient_name or ""
+        sane_name = re.sub(r'[\W_]+', '_', raw_name).strip('_')
         if not sane_name:
             sane_name = f"doc_{certificate.verification_id}"
         filename = f"{sane_name}.pdf"
+        pdf_data = pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else bytes(pdf_buffer)
         return Response(
-            pdf_buffer, 
+            pdf_data, 
             mimetype='application/pdf', 
             headers={'Content-Disposition': f'attachment; filename={filename}'}
         )
     except Exception as e:
-        current_app.logger.error(f"PDF Gen Error: {e}")
-        return jsonify({"msg": "Failed to generate PDF"}), 500
+        import traceback
+        current_app.logger.error(f"PDF Gen Error: {e}\n{traceback.format_exc()}")
+        return jsonify({"msg": f"Failed to generate PDF: {str(e)}"}), 500
 
 
 @certificate_bp.route('/<string:cert_id>/png', methods=['GET'], strict_slashes=False)
@@ -687,17 +690,49 @@ def send_certificate_email_route(cert_id):
 def send_bulk_emails():
     """
     Sends emails for a list of certificate IDs.
+    Accepts integer IDs or UUID verification_ids.
     """
+    from sqlalchemy import or_
     user_id = int(get_jwt_identity())
     user = User.query.get_or_404(user_id)
-    data = request.get_json()
+    data = request.get_json() or {}
     certificate_ids = data.get('certificate_ids', [])
     
     if not certificate_ids: 
         return jsonify({"msg": "No IDs provided"}), 400
 
+    int_ids = []
+    uuid_ids = []
+    for cid in certificate_ids:
+        s = str(cid).strip()
+        if s.isdigit():
+            int_ids.append(int(s))
+        elif s:
+            uuid_ids.append(s)
+
+    query_conditions = []
+    if int_ids:
+        query_conditions.append(Certificate.id.in_(int_ids))
+    if uuid_ids:
+        query_conditions.append(Certificate.verification_id.in_(uuid_ids))
+
+    if not query_conditions:
+        return jsonify({"msg": "No valid certificate IDs provided"}), 400
+
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        certs_to_send = Certificate.query.filter(
+            or_(*query_conditions),
+            Certificate.tenant_id == tenant_id
+        ).all()
+    else:
+        certs_to_send = Certificate.query.filter(
+            or_(*query_conditions),
+            Certificate.user_id == user_id,
+            Certificate.tenant_id.is_(None)
+        ).all()
+    
     sent, errors = 0, []
-    certs_to_send = Certificate.query.filter(Certificate.id.in_(certificate_ids), Certificate.user_id == user_id).all()
     
     is_enterprise = is_enterprise_context(user)
 

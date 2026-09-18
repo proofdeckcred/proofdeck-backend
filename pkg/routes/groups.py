@@ -87,9 +87,18 @@ def send_bulk_email_for_group(group_id):
     else:
         group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
 
-    certificates_to_send = [cert for cert in group.certificates if not cert.sent_at]
+    payload = request.get_json(silent=True) or {}
+    force_resend = payload.get('resend', False)
+    if force_resend:
+        certificates_to_send = list(group.certificates)
+    else:
+        certificates_to_send = [cert for cert in group.certificates if not cert.sent_at]
+        if not certificates_to_send and group.certificates:
+            # If all are already sent, allow re-sending the whole group
+            certificates_to_send = list(group.certificates)
+
     if not certificates_to_send:
-        return jsonify({"msg": "All certificates in this group have already been sent."}), 400
+        return jsonify({"msg": "No certificates found in this group to send."}), 400
 
     from ..models import BackgroundJob, Notification
     from ..tasks.bulk_tasks import process_bulk_email_task

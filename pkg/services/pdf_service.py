@@ -19,14 +19,18 @@ def memoized_url_fetcher(url, *args, **kwargs):
             'redirect_url': cached['redirect_url']
         }
     
-    res = default_url_fetcher(url, *args, **kwargs)
-    _weasyprint_url_cache[url] = {
-        'string': res.get('string'),
-        'mime_type': res.get('mime_type'),
-        'encoding': res.get('encoding'),
-        'redirect_url': res.get('redirect_url')
-    }
-    return res
+    try:
+        res = default_url_fetcher(url, *args, **kwargs)
+        _weasyprint_url_cache[url] = {
+            'string': res.get('string'),
+            'mime_type': res.get('mime_type'),
+            'encoding': res.get('encoding'),
+            'redirect_url': res.get('redirect_url')
+        }
+        return res
+    except Exception as e:
+        current_app.logger.warning(f"Failed to fetch external resource for WeasyPrint ({url}): {e}")
+        return {'string': b'', 'mime_type': 'text/plain'}
 
 
 @lru_cache(maxsize=256)
@@ -57,34 +61,48 @@ def get_image_as_base64(image_path):
                     return base64.b64encode(decoded.encode('utf-8')).decode('utf-8')
             return image_path
 
-    # Check if it is a complete URL (http/https)
-    if image_path.startswith('http'):
+    # 1. If path contains '/uploads/', resolve directly against local disk first!
+    if '/uploads/' in image_path or image_path.startswith('uploads/'):
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
+        # Extract the relative path after 'uploads/'
+        parts = image_path.split('uploads/', 1)
+        rel_path = parts[1].lstrip('/\\')
+        full_path = os.path.join(upload_folder, rel_path)
+        if os.path.exists(full_path):
+            try:
+                with open(full_path, "rb") as img_file:
+                    return base64.b64encode(img_file.read()).decode('utf-8')
+            except Exception as e:
+                current_app.logger.warning(f"Failed to read local upload image {full_path}: {e}")
+
+    # 2. Check if it is an external URL (http/https)
+    if image_path.startswith('http://') or image_path.startswith('https://'):
         import requests
         try:
-            response = requests.get(image_path)
+            response = requests.get(image_path, timeout=5)
             if response.status_code == 200:
                 return base64.b64encode(response.content).decode('utf-8')
         except Exception as e:
              current_app.logger.error(f"Error fetching image from URL {image_path}: {e}")
              return None
 
-    # Fallback to local file system
-    # Strip leading /uploads/ if present
-    if image_path.startswith('/uploads/'):
-        filename = image_path[9:]  # Remove '/uploads/' prefix
-    else:
-        filename = os.path.basename(image_path)  # Get just the filename
-    
-    # Build full path to upload folder
+    # 3. Fallback to direct local path or filename in upload folder
     upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
-    full_path = os.path.join(upload_folder, filename)
+    cleaned_path = image_path.lstrip('/\\')
+    candidates = [
+        image_path,
+        os.path.join(upload_folder, cleaned_path),
+        os.path.join(upload_folder, os.path.basename(image_path))
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate) and os.path.isfile(candidate):
+            try:
+                with open(candidate, "rb") as img_file:
+                    return base64.b64encode(img_file.read()).decode('utf-8')
+            except Exception:
+                continue
 
-    if os.path.exists(full_path):
-        with open(full_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode('utf-8')
-    
-    # Log warning if file doesn't exist
-    current_app.logger.warning(f"Image file not found: {full_path} (from path: {image_path})")
+    current_app.logger.warning(f"Image file not found on disk or network: {image_path}")
     return None
 
 def react_style_to_css(style_dict):
@@ -177,11 +195,11 @@ def _generate_visual_pdf(certificate, template, issuer):
         el_type = el.get('type')
 
         if el_type == 'text' or el_type == 'placeholder':
-            text = el.get('text', '')
+            text = str(el.get('text') or '')
             for placeholder, value in dynamic_data.items():
                 if placeholder.lower() in text.lower():
                     pattern = re.compile(re.escape(placeholder), re.IGNORECASE)
-                    text = pattern.sub(str(value), text)
+                    text = pattern.sub(lambda m, v=value: str(v), text)
 
             font_style_val = el.get("fontStyle", "normal")
             font_weight = "bold" if "bold" in font_style_val else "normal"
