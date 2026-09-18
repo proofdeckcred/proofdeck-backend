@@ -29,7 +29,11 @@ def create_app():
     CORS(
         app,
         resources={
-            r"/api/*": {"origins": ALLOWED_ORIGINS},
+            r"/api/*": {
+                "origins": ALLOWED_ORIGINS,
+                "allow_headers": ["Content-Type", "Authorization", "X-Workspace-Context", "X-Requested-With", "Accept", "Origin"],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+            },
             r"/uploads/*": {"origins": "*"}
         },
         supports_credentials=True
@@ -109,8 +113,9 @@ def create_app():
         if origin and (origin in ALLOWED_ORIGINS or "proofdeck.app" in origin or "certifyme.com.ng" in origin):
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-            response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+            req_headers = request.headers.get('Access-Control-Request-Headers')
+            response.headers['Access-Control-Allow-Headers'] = req_headers or 'Content-Type, Authorization, X-Workspace-Context, X-Requested-With, Accept, Origin'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
         return response
 
     register_blueprints(app)
