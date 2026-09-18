@@ -225,7 +225,7 @@ def send_bulk_email(users, subject, user_content, header_image_url=None):
                                         <a href="{social_links['twitter']}"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/X_logo_2023.svg/48px-X_logo_2023.svg.png" alt="X (Twitter)"></a>
                                     </p>
                                     <p style="margin-top: 20px;">ProofDeck: Digital Certificates Made Simple</p>
-                                    <p>&copy; {datetime.now().year} ProofDeck. All rights reserved.</p>
+                                    <p>&copy; {datetime.now().year} ProofDeck &middot; A BMDL Technologies Ltd. product &middot; RC 9840518</p>
                                 </td>
                             </tr>
                         </table>
