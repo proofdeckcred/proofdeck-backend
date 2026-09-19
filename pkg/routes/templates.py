@@ -97,8 +97,10 @@ def create_custom_template():
     if 'template_image' in request.files:
         file = request.files['template_image']
         if file and allowed_file(file.filename):
+            upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
+            os.makedirs(upload_folder, exist_ok=True)
             filename = secure_filename(f"{user_id}_custom_{file.filename}")
-            file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+            file_path = os.path.join(upload_folder, filename)
             file.save(file_path)
             background_url = f"/uploads/{filename}"
             if 'background' not in layout_data:
@@ -163,8 +165,10 @@ def update_custom_template(template_id):
     if 'template_image' in request.files:
         file = request.files['template_image']
         if file and allowed_file(file.filename):
+            upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
+            os.makedirs(upload_folder, exist_ok=True)
             filename = secure_filename(f"{user_id}_custom_{template.id}_{file.filename}")
-            file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+            file_path = os.path.join(upload_folder, filename)
             file.save(file_path)
             
             background_url = f"/uploads/{filename}"

@@ -109,7 +109,13 @@ def create_app():
             resp.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
             resp.headers['Access-Control-Allow-Headers'] = '*'
             return resp
-        response = send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        upload_folder = app.config.get('UPLOAD_FOLDER', '')
+        file_path = os.path.join(upload_folder, filename)
+        if not os.path.exists(file_path) or not os.path.isfile(file_path):
+            resp = jsonify({"msg": "Image not found", "error": "file_not_found"})
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            return resp, 404
+        response = send_from_directory(upload_folder, filename)
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = '*'
@@ -131,6 +137,33 @@ def create_app():
 
     @app.errorhandler(404)
     def not_found(error):
-        return jsonify({"msg": "Resource Not Found"}), 404
+        from flask import request
+        origin = request.headers.get('Origin', '*')
+        resp = jsonify({"msg": "Resource Not Found"})
+        resp.headers['Access-Control-Allow-Origin'] = origin if origin else '*'
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        return resp, 404
+
+    @app.errorhandler(500)
+    def internal_error(error):
+        from flask import request
+        db.session.rollback()
+        origin = request.headers.get('Origin', '*')
+        resp = jsonify({"msg": "Internal Server Error", "error": str(error)})
+        resp.headers['Access-Control-Allow-Origin'] = origin if origin else '*'
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        return resp, 500
+
+    @app.errorhandler(Exception)
+    def unhandled_exception(e):
+        from flask import request
+        import traceback
+        app.logger.error(f"Unhandled Exception: {e}\n{traceback.format_exc()}")
+        db.session.rollback()
+        origin = request.headers.get('Origin', '*')
+        resp = jsonify({"msg": f"Server Error: {str(e)}", "error": str(e)})
+        resp.headers['Access-Control-Allow-Origin'] = origin if origin else '*'
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        return resp, 500
 
     return app

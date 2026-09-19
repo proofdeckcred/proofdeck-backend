@@ -242,7 +242,7 @@ def create_certificate():
             user_id=user_id,
             tenant_id=tenant_id if is_comp else None,
             template_id=template.id,
-            group_id=data.get('group_id'),
+            group_id=data.get('group_id') or None,
             recipient_name=data['recipient_name'],
             recipient_email=recipient_email, 
             course_title=data['course_title'],
@@ -257,15 +257,22 @@ def create_certificate():
         db.session.add(certificate)
         db.session.flush()
 
-        # Log QuotaTransaction
-        txn = QuotaTransaction(
-            tenant_id=tenant_id if is_comp else None,
-            user_id=user_id,
-            certificate_id=certificate.id,
-            amount=-1
-        )
-        db.session.add(txn)
-        db.session.commit()
+        # Log QuotaTransaction (soft-fail if table not yet migrated so cert creation is never blocked)
+        try:
+            txn = QuotaTransaction(
+                tenant_id=tenant_id if is_comp else None,
+                user_id=user_id,
+                certificate_id=certificate.id,
+                amount=-1
+            )
+            db.session.add(txn)
+            db.session.commit()
+        except Exception as q_err:
+            db.session.rollback()
+            current_app.logger.warning(f"QuotaTransaction logging skipped: {q_err}")
+            quota_holder.cert_quota -= 1
+            db.session.add(certificate)
+            db.session.commit()
 
         email_sent = False
 
@@ -311,9 +318,15 @@ def create_certificate():
         }), 201
 
     except Exception as e:
-        current_app.logger.error(f"Error creating certificate: {e}")
+        import traceback
+        current_app.logger.error(f"Error creating certificate: {e}\n{traceback.format_exc()}")
         db.session.rollback()
-        return jsonify({"msg": "Failed to create document"}), 500
+        origin = request.headers.get('Origin')
+        resp = jsonify({"msg": f"Failed to create document: {str(e)}", "error": str(e)})
+        if origin:
+            resp.headers['Access-Control-Allow-Origin'] = origin
+            resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        return resp, 500
 
 
 @certificate_bp.route('/', methods=['GET'])
