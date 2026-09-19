@@ -1,4 +1,6 @@
 import os
+import base64
+import uuid
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
@@ -9,9 +11,65 @@ from sqlalchemy.orm.attributes import flag_modified
 
 template_bp = Blueprint('templates', __name__)
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def extract_and_save_base64_images(layout_data, user_id):
+    """
+    Extracts base64 data URLs from elements and background, saves them as real files in uploads/,
+    and replaces them with lightweight /uploads/... paths to prevent MySQL packet limits and payload bloating.
+    """
+    if not isinstance(layout_data, dict):
+        return layout_data
+
+    upload_folder = current_app.config.get('UPLOAD_FOLDER')
+    if not upload_folder:
+        return layout_data
+
+    os.makedirs(upload_folder, exist_ok=True)
+
+    # 1. Check background image
+    bg = layout_data.get('background')
+    if isinstance(bg, dict):
+        bg_img = bg.get('image')
+        if bg_img and isinstance(bg_img, str) and bg_img.startswith('data:image/'):
+            try:
+                header, encoded = bg_img.split(';base64,', 1)
+                ext = 'png'
+                if 'jpeg' in header or 'jpg' in header:
+                    ext = 'jpg'
+                elif 'webp' in header:
+                    ext = 'webp'
+                filename = secure_filename(f"{user_id}_bg_{uuid.uuid4().hex[:8]}.{ext}")
+                filepath = os.path.join(upload_folder, filename)
+                with open(filepath, 'wb') as f:
+                    f.write(base64.b64decode(encoded))
+                layout_data['background']['image'] = f"/uploads/{filename}"
+            except Exception as e:
+                current_app.logger.warning(f"Could not save base64 background: {e}")
+
+    # 2. Check elements
+    elements = layout_data.get('elements', [])
+    for el in elements:
+        src = el.get('src')
+        if src and isinstance(src, str) and src.startswith('data:image/'):
+            try:
+                header, encoded = src.split(';base64,', 1)
+                ext = 'png'
+                if 'jpeg' in header or 'jpg' in header:
+                    ext = 'jpg'
+                elif 'webp' in header:
+                    ext = 'webp'
+                filename = secure_filename(f"{user_id}_asset_{uuid.uuid4().hex[:8]}.{ext}")
+                filepath = os.path.join(upload_folder, filename)
+                with open(filepath, 'wb') as f:
+                    f.write(base64.b64decode(encoded))
+                el['src'] = f"/uploads/{filename}"
+            except Exception as e:
+                current_app.logger.warning(f"Could not save base64 element asset: {e}")
+
+    return layout_data
 
 @template_bp.route('/upload-custom', methods=['POST'])
 @jwt_required()
@@ -31,6 +89,8 @@ def create_custom_template():
         layout_data = json.loads(layout_data_str)
     except json.JSONDecodeError:
         return jsonify({"msg": "Invalid layout data format."}), 400
+
+    layout_data = extract_and_save_base64_images(layout_data, user_id)
 
     background_url = None
 
@@ -98,6 +158,7 @@ def update_custom_template(template_id):
             layout_data = json.loads(request.form.get('layout_data'))
         except json.JSONDecodeError:
             return jsonify({"msg": "Invalid layout data format."}), 400
+        layout_data = extract_and_save_base64_images(layout_data, user_id)
 
     if 'template_image' in request.files:
         file = request.files['template_image']

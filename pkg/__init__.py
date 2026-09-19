@@ -100,10 +100,19 @@ def create_app():
     def expired_token_callback(jwt_header, jwt_data):
         return jsonify({"msg": "Token has expired", "error": "token_expired"}), 401
 
-    @app.route('/uploads/<path:filename>')
+    @app.route('/uploads/<path:filename>', methods=['GET', 'HEAD', 'OPTIONS'])
     def serve_upload(filename):
+        from flask import make_response
+        if request.method == 'OPTIONS':
+            resp = make_response('', 204)
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            resp.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+            resp.headers['Access-Control-Allow-Headers'] = '*'
+            return resp
         response = send_from_directory(app.config['UPLOAD_FOLDER'], filename)
         response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = '*'
         return response
 
     @app.after_request
