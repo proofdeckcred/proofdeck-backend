@@ -14,20 +14,49 @@ def memoized_url_fetcher(url, *args, **kwargs):
         cached = _weasyprint_url_cache[url]
         return {
             'string': cached['string'],
-            'mime_type': cached['mime_type'],
-            'encoding': cached['encoding'],
-            'redirect_url': cached['redirect_url']
+            'mime_type': cached.get('mime_type', 'application/octet-stream'),
+            'encoding': cached.get('encoding'),
+            'redirect_url': cached.get('redirect_url')
         }
     
+    # 1. Fast resolution for local uploads (0 network delay)
+    if '/uploads/' in url or url.startswith('uploads/'):
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
+        parts = url.split('uploads/', 1)
+        rel_path = parts[1].lstrip('/\\')
+        full_path = os.path.join(upload_folder, rel_path)
+        if os.path.exists(full_path) and os.path.isfile(full_path):
+            try:
+                with open(full_path, 'rb') as f:
+                    content = f.read()
+                mime = 'image/png'
+                if full_path.lower().endswith(('.jpg', '.jpeg')):
+                    mime = 'image/jpeg'
+                elif full_path.lower().endswith('.svg'):
+                    mime = 'image/svg+xml'
+                elif full_path.lower().endswith('.webp'):
+                    mime = 'image/webp'
+                res = {'string': content, 'mime_type': mime}
+                _weasyprint_url_cache[url] = res
+                return res
+            except Exception as e:
+                current_app.logger.warning(f"Error reading local file in url fetcher ({full_path}): {e}")
+
+    # 2. Network URL with strict timeout using requests to prevent Gunicorn worker abort
+    import requests
     try:
-        res = default_url_fetcher(url, *args, **kwargs)
-        _weasyprint_url_cache[url] = {
-            'string': res.get('string'),
-            'mime_type': res.get('mime_type'),
-            'encoding': res.get('encoding'),
-            'redirect_url': res.get('redirect_url')
-        }
-        return res
+        r = requests.get(url, timeout=4, headers={'User-Agent': 'Mozilla/5.0 ProofDeck-PDF'})
+        if r.status_code == 200:
+            content_type = r.headers.get('Content-Type', 'application/octet-stream')
+            res = {
+                'string': r.content,
+                'mime_type': content_type.split(';')[0].strip(),
+                'encoding': r.encoding,
+                'redirect_url': r.url
+            }
+            _weasyprint_url_cache[url] = res
+            return res
+        return {'string': b'', 'mime_type': 'text/plain'}
     except Exception as e:
         current_app.logger.warning(f"Failed to fetch external resource for WeasyPrint ({url}): {e}")
         return {'string': b'', 'mime_type': 'text/plain'}
@@ -374,12 +403,42 @@ def _generate_visual_pdf(certificate, template, issuer):
                     mime_type = "image/svg+xml"
                 background_style += f"background-image: url('data:{mime_type};base64,{base64_bg}'); background-size: cover; background-position: center;"
 
+    # Only load fonts that are actually used in this certificate's elements
+    STANDARD_FONTS = {'arial', 'helvetica', 'georgia', 'times new roman', 'times', 'serif', 'sans-serif', 'monospace', 'courier', 'dejavu sans', 'dejavu serif'}
+    used_fonts = set()
+    for el in elements:
+        fn = el.get('fontFamily')
+        if fn and fn.strip().lower() not in STANDARD_FONTS:
+            used_fonts.add(fn.strip())
+
+    font_links = []
+    google_families = [f"family={f.replace(' ', '+')}:wght@400;700" for f in sorted(used_fonts) if f.lower() != 'product sans']
+    if google_families:
+        font_links.append(f'<link rel="stylesheet" href="https://fonts.googleapis.com/css2?{"&".join(google_families)}&display=swap">')
+
+    product_sans_css = ""
+    if 'product sans' in [f.lower() for f in used_fonts]:
+        product_sans_css = """
+            @font-face {
+              font-family: 'Product Sans';
+              font-style: normal;
+              font-weight: 400;
+              src: url(https://fonts.gstatic.com/s/productsans/v5/HYvgU2fE2nRJvZ5JFAumwegdm0LZxxJZkbJ7NDDPsr0.woff2) format('woff2');
+            }
+            @font-face {
+              font-family: 'Product Sans';
+              font-style: normal;
+              font-weight: 750;
+              src: url(https://fonts.gstatic.com/s/productsans/v5/ea8acIL1mXDmi1A-4C2hnT9-pQURs1S4Uo3Al709Yuw.woff2) format('woff2');
+            }
+        """
+
     html_template = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Cinzel:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Great+Vibes&family=Inter:wght@400;500;600;700&family=Lato:ital,wght@0,300;0,400;0,700;1,400&family=Lexend:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,700&family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Oswald:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Roboto:ital,wght@0,300;0,400;0,700;1,400&family=Sacramento&display=swap">
+        {''.join(font_links)}
         <style>
             @page {{ size: {page_width}px {page_height}px; margin: 0; }}
             body {{ margin: 0; padding: 0; font-family: sans-serif; }}
@@ -388,18 +447,7 @@ def _generate_visual_pdf(certificate, template, issuer):
                 position: relative; overflow: hidden;
                 {background_style}
             }}
-            @font-face {{
-              font-family: 'Product Sans';
-              font-style: normal;
-              font-weight: 400;
-              src: url(https://fonts.gstatic.com/s/productsans/v5/HYvgU2fE2nRJvZ5JFAumwegdm0LZxxJZkbJ7NDDPsr0.woff2) format('woff2');
-            }}
-            @font-face {{
-              font-family: 'Product Sans';
-              font-style: normal;
-              font-weight: 750;
-              src: url(https://fonts.gstatic.com/s/productsans/v5/ea8acIL1mXDmi1A-4C2hnT9-pQURs1S4Uo3Al709Yuw.woff2) format('woff2');
-            }}
+            {product_sans_css}
         </style>
     </head>
     <body>
