@@ -194,7 +194,11 @@ def _generate_visual_pdf(certificate, template, issuer):
         content = ''
         el_type = el.get('type')
 
-        if el_type == 'text' or el_type == 'placeholder':
+        is_qr = el.get('isQr', False) or el.get('type') == 'qr'
+        if is_qr:
+            content = dynamic_data.get("{{qr_code}}", "")
+            style += "display: flex; align-items: center; justify-content: center;"
+        elif el_type == 'text' or el_type == 'placeholder':
             text = str(el.get('text') or '')
             for placeholder, value in dynamic_data.items():
                 if placeholder.lower() in text.lower():
@@ -204,6 +208,14 @@ def _generate_visual_pdf(certificate, template, issuer):
             font_style_val = el.get("fontStyle", "normal")
             font_weight = "bold" if "bold" in font_style_val else "normal"
             font_style = "italic" if "italic" in font_style_val else "normal"
+            text_decor = el.get("textDecoration", "")
+            decor_css = ""
+            if "underline" in text_decor and "line-through" in text_decor:
+                decor_css = "text-decoration: underline line-through;"
+            elif "underline" in text_decor:
+                decor_css = "text-decoration: underline;"
+            elif "line-through" in text_decor:
+                decor_css = "text-decoration: line-through;"
 
             # Vertical and horizontal alignment
             v_align = el.get('verticalAlign', 'middle')
@@ -222,38 +234,145 @@ def _generate_visual_pdf(certificate, template, issuer):
             else:
                 h_align_css = 'justify-content: flex-start; text-align: left;'
 
+            letter_spacing = el.get('letterSpacing', 0)
+            line_height = el.get('lineHeight', 1.2)
+            opacity = el.get('opacity', 1.0)
+
             style += (
                 f'font-family: {el.get("fontFamily", "sans-serif")}; '
                 f'font-size: {el.get("fontSize", 16)}px; '
                 f'color: {el.get("fill", "#000")}; '
                 f'font-style: {font_style}; '
                 f'font-weight: {font_weight}; '
-                f'line-height: 1.2; word-wrap: break-word; display: flex; '
+                f'letter-spacing: {letter_spacing}px; '
+                f'line-height: {line_height}; '
+                f'opacity: {opacity}; '
+                f'{decor_css} '
+                f'word-wrap: break-word; display: flex; '
                 f'{v_align_css} {h_align_css} '
             )
                 
             content = text.replace('\\n', '<br>').replace('\n', '<br>')
 
+        elif el_type == 'rect':
+            fill = el.get('fill', 'transparent')
+            stroke = el.get('stroke', 'transparent')
+            stroke_width = el.get('strokeWidth', 0)
+            corner_radius = el.get('cornerRadius', 0)
+            opacity = el.get('opacity', 1.0)
+            dash = el.get('dash')
+            border_style = 'dashed' if dash else 'solid'
+            
+            style += (
+                f'background-color: {fill}; '
+                f'border: {stroke_width}px {border_style} {stroke}; '
+                f'border-radius: {corner_radius}px; '
+                f'opacity: {opacity}; box-sizing: border-box;'
+            )
+
+        elif el_type == 'circle':
+            fill = el.get('fill', 'transparent')
+            stroke = el.get('stroke', 'transparent')
+            stroke_width = el.get('strokeWidth', 0)
+            opacity = el.get('opacity', 1.0)
+            dash = el.get('dash')
+            border_style = 'dashed' if dash else 'solid'
+            
+            style += (
+                f'background-color: {fill}; '
+                f'border: {stroke_width}px {border_style} {stroke}; '
+                f'border-radius: 50%; '
+                f'opacity: {opacity}; box-sizing: border-box;'
+            )
+
+        elif el_type == 'line':
+            stroke = el.get('stroke', '#000000')
+            stroke_width = max(1, el.get('strokeWidth', 2))
+            dash = el.get('dash')
+            border_style = 'dashed' if dash else 'solid'
+            opacity = el.get('opacity', 1.0)
+            
+            style += (
+                f'border-top: {stroke_width}px {border_style} {stroke}; '
+                f'height: 0px; opacity: {opacity}; box-sizing: border-box;'
+            )
+
+        elif el_type == 'star':
+            fill = el.get('fill', '#f59e0b')
+            stroke = el.get('stroke', 'transparent')
+            stroke_width = el.get('strokeWidth', 0)
+            opacity = el.get('opacity', 1.0)
+            w = el.get('width', 50)
+            h = el.get('height', 50)
+            
+            content = f'''<svg width="{w}" height="{h}" viewBox="0 0 100 100" style="width: 100%; height: 100%; overflow: visible;">
+                <polygon points="50,5 64,36 98,36 70,57 81,91 50,70 19,91 30,57 2,36 36,36"
+                    fill="{fill}" stroke="{stroke}" stroke-width="{stroke_width}" />
+            </svg>'''
+            style += f'opacity: {opacity};'
+
+        elif el_type == 'badge':
+            fill = el.get('fill', '#d97706')
+            stroke = el.get('stroke', '#b45309')
+            stroke_width = el.get('strokeWidth', 2)
+            opacity = el.get('opacity', 1.0)
+            w = el.get('width', 80)
+            h = el.get('height', 100)
+            
+            content = f'''<svg width="{w}" height="{h}" viewBox="0 0 100 120" style="width: 100%; height: 100%;">
+                <polygon points="25,70 15,115 38,100 50,115 50,70" fill="{stroke}" opacity="0.85" />
+                <polygon points="75,70 85,115 62,100 50,115 50,70" fill="{stroke}" opacity="0.85" />
+                <circle cx="50" cy="50" r="42" fill="{fill}" stroke="{stroke}" stroke-width="{stroke_width}" />
+                <circle cx="50" cy="50" r="34" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="3,3" />
+                <polygon points="50,26 56,38 70,38 58,47 63,60 50,52 37,60 42,47 30,38 44,38" fill="#ffffff" />
+            </svg>'''
+            style += f'opacity: {opacity};'
+
+        elif el_type == 'border':
+            stroke = el.get('stroke', '#1e3a8a')
+            stroke_width = el.get('strokeWidth', 4)
+            dash = el.get('dash')
+            border_style = 'dashed' if dash else 'solid'
+            corner_radius = el.get('cornerRadius', 0)
+            opacity = el.get('opacity', 1.0)
+            
+            style += (
+                f'border: {stroke_width}px {border_style} {stroke}; '
+                f'border-radius: {corner_radius}px; pointer-events: none; '
+                f'opacity: {opacity}; box-sizing: border-box;'
+            )
+
         elif el_type == 'image':
             src = el.get('src')
             if src:
-                base64_img = get_image_as_base64(src)
-                if base64_img:
-                    content = f'<img src="data:image/png;base64,{base64_img}" style="width: 100%; height: 100%; object-fit: contain;">'
+                if src.startswith('data:'):
+                    content = f'<img src="{src}" style="width: 100%; height: 100%; object-fit: contain;">'
+                else:
+                    base64_img = get_image_as_base64(src)
+                    if base64_img:
+                        content = f'<img src="data:image/png;base64,{base64_img}" style="width: 100%; height: 100%; object-fit: contain;">'
 
         html_elements.append(f'<div style="{style}">{content}</div>')
 
     background_style = ''
-    if background.get('fill'):
+    if background.get('gradient'):
+        background_style += f'background: {background["gradient"]};'
+    elif background.get('fill'):
         background_style += f'background-color: {background["fill"]};'
+    else:
+        background_style += 'background-color: #ffffff;'
+
     bg_image_path = background.get('image') or template.background_url
     if bg_image_path:
-         base64_bg = get_image_as_base64(bg_image_path)
-         if base64_bg:
-            mime_type = "image/png"
-            if bg_image_path.startswith("data:image/svg+xml") or bg_image_path.endswith(".svg"):
-                mime_type = "image/svg+xml"
-            background_style += f"background-image: url('data:{mime_type};base64,{base64_bg}'); background-size: cover; background-position: center;"
+        if bg_image_path.startswith('data:'):
+            background_style += f"background-image: url('{bg_image_path}'); background-size: cover; background-position: center;"
+        else:
+            base64_bg = get_image_as_base64(bg_image_path)
+            if base64_bg:
+                mime_type = "image/png"
+                if bg_image_path.startswith("data:image/svg+xml") or bg_image_path.endswith(".svg"):
+                    mime_type = "image/svg+xml"
+                background_style += f"background-image: url('data:{mime_type};base64,{base64_bg}'); background-size: cover; background-position: center;"
 
     html_template = f"""
     <!DOCTYPE html>

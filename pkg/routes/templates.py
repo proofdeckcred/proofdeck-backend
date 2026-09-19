@@ -41,16 +41,19 @@ def create_custom_template():
             file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
             background_url = f"/uploads/{filename}"
-            layout_data['background'] = {'image': background_url}
+            if 'background' not in layout_data:
+                layout_data['background'] = {}
+            layout_data['background']['image'] = background_url
         else:
             return jsonify({"msg": "Invalid file type. Please use PNG or JPG."}), 400
     else:
-        # Check if layout_data already has background image data URL (preset)
+        # Check if layout_data has a background image (preset or uploaded data URL or path)
         background_img = layout_data.get('background', {}).get('image')
-        if background_img and background_img.startswith('data:'):
+        if background_img:
             background_url = background_img
         else:
-            return jsonify({"msg": "Missing template image file or background preset."}), 400
+            # Blank canvas or color-based template from scratch
+            background_url = None
     
     is_comp, tenant_id, _, _ = get_active_context(user)
     new_template = Template(
