@@ -43,7 +43,7 @@ pilot_cli = click.Group('pilot', help='Pilot integration commands.')
 @with_appcontext
 def create_pilot():
     """Creates the standard pilot user for HannaCode."""
-    email = "hannacode_pilot@proofdeck.io"
+    email = "hannacode_pilot@proofdeck.app"
     name = "HannaCode Pilot"
     
     # Check if user already exists

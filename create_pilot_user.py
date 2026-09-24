@@ -9,7 +9,7 @@ app = create_app()
 
 def create_pilot_user():
     with app.app_context():
-        email = "hannacode_pilot@proofdeck.io"
+        email = "hannacode_pilot@proofdeck.app"
         name = "HannaCode Pilot"
         
         # Check if user already exists

@@ -356,3 +356,52 @@ class EmailLog(db.Model):
 
     user = db.relationship('User', backref=db.backref('email_logs', lazy='dynamic'))
     campaign = db.relationship('BroadcastCampaign', backref=db.backref('email_logs', lazy='dynamic'))
+
+class BlogPost(db.Model):
+    __tablename__ = 'blog_posts'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    slug = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    excerpt = db.Column(db.Text, nullable=True)
+    content = db.Column(db.Text, nullable=False)
+    featured_image = db.Column(db.String(500), nullable=True)
+    author_name = db.Column(db.String(100), default='ProofDeck Team', nullable=False)
+    author_role = db.Column(db.String(100), default='Credential Specialists', nullable=True)
+    author_avatar = db.Column(db.String(500), nullable=True)
+    category = db.Column(db.String(100), default='Guides', nullable=False, index=True)
+    tags = db.Column(db.JSON, nullable=True)
+    meta_title = db.Column(db.String(255), nullable=True)
+    meta_description = db.Column(db.String(500), nullable=True)
+    canonical_url = db.Column(db.String(500), nullable=True)
+    is_published = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    published_at = db.Column(db.DateTime, nullable=True, index=True)
+    read_time_minutes = db.Column(db.Integer, default=5, nullable=False)
+    view_count = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self, include_content=True):
+        data = {
+            "id": self.id,
+            "title": self.title,
+            "slug": self.slug,
+            "excerpt": self.excerpt,
+            "featured_image": self.featured_image,
+            "author_name": self.author_name,
+            "author_role": self.author_role,
+            "author_avatar": self.author_avatar,
+            "category": self.category,
+            "tags": self.tags or [],
+            "meta_title": self.meta_title or self.title,
+            "meta_description": self.meta_description or self.excerpt,
+            "canonical_url": self.canonical_url,
+            "is_published": self.is_published,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
+            "read_time_minutes": self.read_time_minutes,
+            "view_count": self.view_count,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if include_content:
+            data["content"] = self.content
+        return data

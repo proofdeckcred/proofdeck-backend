@@ -29,6 +29,8 @@ from .admin_team import admin_team_bp
 from .admin_system import admin_system_bp
 from .admin_broadcasts import admin_broadcasts_bp
 from .email_routes import email_routes_bp
+from .blog import blog_bp
+from .admin_blog import admin_blog_bp
 
 def register_blueprints(app):
     """
@@ -54,9 +56,11 @@ def register_blueprints(app):
     from .jobs import jobs_bp
     app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
     app.register_blueprint(jobs_bp, url_prefix='/api/jobs')
+    app.register_blueprint(blog_bp, url_prefix='/api/blog')
     
     # All admin blueprints are grouped under a single, consistent prefix.
     app.register_blueprint(admin_auth_bp, url_prefix='/api/admin/auth')
+    app.register_blueprint(admin_blog_bp, url_prefix='/api/admin')
     app.register_blueprint(admin_users_bp, url_prefix='/api/admin')
     app.register_blueprint(admin_payments_bp, url_prefix='/api/admin')
     app.register_blueprint(admin_certificates_bp, url_prefix='/api/admin')
