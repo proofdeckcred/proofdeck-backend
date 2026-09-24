@@ -18,6 +18,7 @@ def create_app():
         "https://certifyme.com.ng",
         "https://proofdeck.app",
         "https://www.proofdeck.app",
+        "https://blog.proofdeck.app",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:5174",
