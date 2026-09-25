@@ -37,6 +37,10 @@ with app.app_context():
         # User activity columns for Email Promotions & Digests
         ("users", "last_active_at", "TIMESTAMP NULL" if dialect == "postgresql" else "DATETIME NULL"),
         ("users", "last_winback_sent_at", "TIMESTAMP NULL" if dialect == "postgresql" else "DATETIME NULL"),
+        # Group description & Certificate view/verification tracking
+        ("groups", "description", "TEXT NULL"),
+        ("certificates", "view_count", "INTEGER NOT NULL DEFAULT 0"),
+        ("certificates", "last_viewed_at", "TIMESTAMP NULL" if dialect == "postgresql" else "DATETIME NULL"),
     ]
 
     try:

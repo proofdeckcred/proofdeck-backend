@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..models import db, Group, Certificate, Template, User
 from ..utils.helpers import get_active_context
 from ..extensions import mail
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 import zipfile
 import re
@@ -19,14 +19,29 @@ groups_bp = Blueprint('groups', __name__)
 def create_group():
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
-    data = request.get_json()
+    data = request.get_json() or {}
     name = data.get('name')
     if not name: return jsonify({"msg": "Group name is required"}), 400
+    description = data.get('description', '').strip() if data.get('description') else None
     is_comp, tenant_id, _, _ = get_active_context(user)
-    new_group = Group(user_id=user_id, tenant_id=tenant_id if is_comp else None, name=name)
+    new_group = Group(
+        user_id=user_id,
+        tenant_id=tenant_id if is_comp else None,
+        name=name,
+        description=description
+    )
     db.session.add(new_group)
     db.session.commit()
-    return jsonify({"msg": "Group created successfully", "group": { "id": new_group.id, "name": new_group.name, "certificate_count": 0 }}), 201
+    return jsonify({
+        "msg": "Group created successfully",
+        "group": {
+            "id": new_group.id,
+            "name": new_group.name,
+            "description": new_group.description or "",
+            "certificate_count": 0,
+            "created_at": new_group.created_at.isoformat()
+        }
+    }), 201
 
 @groups_bp.route('/', methods=['GET'])
 @jwt_required()
@@ -42,7 +57,13 @@ def get_groups():
     else:
         pagination = Group.query.filter_by(user_id=user_id, tenant_id=None).order_by(Group.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
         
-    groups_data = [{"id": group.id, "name": group.name, "certificate_count": len(group.certificates), "created_at": group.created_at.isoformat()} for group in pagination.items]
+    groups_data = [{
+        "id": group.id,
+        "name": group.name,
+        "description": group.description or "",
+        "certificate_count": len(group.certificates),
+        "created_at": group.created_at.isoformat()
+    } for group in pagination.items]
     return jsonify({"groups": groups_data, "total": pagination.total, "pages": pagination.pages, "current_page": pagination.page}), 200
 
 @groups_bp.route('/<int:group_id>', methods=['GET'])
@@ -56,8 +77,172 @@ def get_group_details(group_id):
     else:
         group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
         
-    certificates_data = [{'id': c.id, 'recipient_name': c.recipient_name, 'recipient_email': c.recipient_email, 'course_title': c.course_title, 'issue_date': c.issue_date.isoformat(), 'sent_at': c.sent_at.isoformat() if c.sent_at else None} for c in group.certificates]
-    return jsonify({"id": group.id, "name": group.name, "certificates": certificates_data}), 200
+    certificates_data = [{
+        'id': c.id,
+        'recipient_name': c.recipient_name,
+        'recipient_email': c.recipient_email,
+        'course_title': c.course_title,
+        'issue_date': c.issue_date.isoformat(),
+        'sent_at': c.sent_at.isoformat() if c.sent_at else None,
+        'view_count': c.view_count or 0,
+        'status': c.status
+    } for c in group.certificates]
+    return jsonify({
+        "id": group.id,
+        "name": group.name,
+        "description": group.description or "",
+        "created_at": group.created_at.isoformat(),
+        "certificates": certificates_data
+    }), 200
+
+@groups_bp.route('/<int:group_id>', methods=['PUT', 'PATCH'])
+@jwt_required()
+def update_group(group_id):
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
+    else:
+        group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
+
+    data = request.get_json() or {}
+    if 'name' in data and data['name'].strip():
+        group.name = data['name'].strip()
+    if 'description' in data:
+        group.description = data['description'].strip() if data['description'] else None
+
+    db.session.commit()
+    return jsonify({
+        "msg": "Group updated successfully",
+        "group": {
+            "id": group.id,
+            "name": group.name,
+            "description": group.description or "",
+            "certificate_count": len(group.certificates),
+            "created_at": group.created_at.isoformat()
+        }
+    }), 200
+
+@groups_bp.route('/<int:group_id>/analytics', methods=['GET'])
+@jwt_required()
+def get_group_analytics(group_id):
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+
+    # Gated to paid accounts
+    if user.role == 'free':
+        return jsonify({
+            "upgrade_required": True,
+            "msg": "Group performance analytics is available on Pro plans."
+        }), 200
+
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
+    else:
+        group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
+
+    total_certs = len(group.certificates)
+    total_sent = sum(1 for c in group.certificates if c.sent_at)
+    total_views = sum(c.view_count or 0 for c in group.certificates)
+    total_verified = sum(1 for c in group.certificates if (c.view_count or 0) > 0)
+    active_valid = sum(1 for c in group.certificates if c.status == 'valid')
+
+    # Build 7-day trend
+    labels = []
+    views_trend = []
+    issuance_trend = []
+    now = datetime.utcnow()
+    for i in range(6, -1, -1):
+        day = now - timedelta(days=i)
+        day_str = day.strftime("%b %d")
+        labels.append(day_str)
+        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day.replace(hour=23, minute=59, second=59, microsecond=999999)
+        issuance_trend.append(sum(1 for c in group.certificates if c.created_at and day_start <= c.created_at <= day_end))
+        views_trend.append(sum(c.view_count or 0 for c in group.certificates if c.last_viewed_at and day_start <= c.last_viewed_at <= day_end))
+
+    return jsonify({
+        "upgrade_required": False,
+        "stats": {
+            "total_certs": total_certs,
+            "total_sent": total_sent,
+            "total_views": total_views,
+            "total_verified": total_verified,
+            "active_valid": active_valid,
+            "send_rate": round((total_sent / total_certs * 100) if total_certs > 0 else 0, 1),
+            "view_rate": round((total_verified / total_certs * 100) if total_certs > 0 else 0, 1)
+        },
+        "chart": {
+            "labels": labels,
+            "issuance": issuance_trend,
+            "views": views_trend
+        }
+    }), 200
+
+@groups_bp.route('/<int:group_id>/add-certificates', methods=['POST'])
+@jwt_required()
+def add_certificates_to_group(group_id):
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+
+    # Gated to paid accounts
+    if user.role == 'free':
+        return jsonify({
+            "upgrade_required": True,
+            "msg": "Adding certificates to existing groups is a Pro feature. Please upgrade your plan."
+        }), 403
+
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
+    else:
+        group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
+
+    data = request.get_json() or {}
+    cert_ids = data.get('certificate_ids', [])
+    if not cert_ids or not isinstance(cert_ids, list):
+        return jsonify({"msg": "Please select at least one certificate to add."}), 400
+
+    # Ensure certificates belong to user/tenant context
+    if is_comp:
+        certs = Certificate.query.filter(Certificate.id.in_(cert_ids), Certificate.tenant_id == tenant_id).all()
+    else:
+        certs = Certificate.query.filter(Certificate.id.in_(cert_ids), Certificate.user_id == user_id, Certificate.tenant_id.is_(None)).all()
+
+    if not certs:
+        return jsonify({"msg": "No matching certificates found."}), 404
+
+    added_count = 0
+    for cert in certs:
+        if cert.group_id != group.id:
+            cert.group_id = group.id
+            added_count += 1
+
+    db.session.commit()
+    return jsonify({
+        "msg": f"Successfully added {added_count} certificate{'s' if added_count != 1 else ''} to '{group.name}'.",
+        "added_count": added_count,
+        "total_certificates": len(group.certificates)
+    }), 200
+
+@groups_bp.route('/<int:group_id>/remove-certificate/<int:cert_id>', methods=['POST', 'DELETE'])
+@jwt_required()
+def remove_certificate_from_group(group_id, cert_id):
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
+        cert = Certificate.query.filter_by(id=cert_id, group_id=group.id, tenant_id=tenant_id).first_or_404()
+    else:
+        group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
+        cert = Certificate.query.filter_by(id=cert_id, group_id=group.id, user_id=user_id, tenant_id=None).first_or_404()
+
+    cert.group_id = None
+    db.session.commit()
+    return jsonify({"msg": "Certificate removed from group successfully."}), 200
 
 @groups_bp.route('/<int:group_id>', methods=['DELETE'])
 @jwt_required()

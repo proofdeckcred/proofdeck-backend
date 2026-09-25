@@ -197,13 +197,14 @@ def get_user_performance_insights():
             "performance": min(100, max(20, issued * 10))
         })
 
-    verification_clicks_est = total_certs_user * 3
-    social_shares_est = int(total_certs_user * 1.4)
+    real_verification_views = db.session.query(func.coalesce(func.sum(Certificate.view_count), 0)).filter(cert_filter).scalar() or 0
+    verification_clicks = real_verification_views if real_verification_views > 0 else (total_certs_user * 2 if total_certs_user > 0 else 0)
+    social_shares_est = int(total_certs_user * 0.8)
 
     # Dynamic Funnel & Channel Sharing Breakdown
     verified_count = db.session.query(func.count(Certificate.id)).filter(
         cert_filter,
-        Certificate.status == 'valid'
+        Certificate.view_count > 0
     ).scalar() or 0
 
     funnel_breakdown = {
@@ -257,6 +258,6 @@ def get_user_performance_insights():
         "program_insights": program_insights,
         "engagement": {
             "social_shares": social_shares_est,
-            "verification_clicks": verification_clicks_est
+            "verification_clicks": verification_clicks
         }
     }), 200

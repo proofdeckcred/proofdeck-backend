@@ -797,6 +797,14 @@ def verify_certificate(verification_id):
     if not certificate:
         return jsonify({"msg": "Certificate not found"}), 404
 
+    # Real verification scan/view tracking
+    try:
+        certificate.view_count = (certificate.view_count or 0) + 1
+        certificate.last_viewed_at = datetime.utcnow()
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
     template = Template.query.get_or_404(certificate.template_id)
 
     company_data = None
