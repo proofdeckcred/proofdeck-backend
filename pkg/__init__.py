@@ -122,37 +122,28 @@ def create_app():
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = '*'
-        return response
+    @app.before_request
+    def handle_preflight():
+        from flask import request, make_response
+        if request.method == 'OPTIONS':
+            origin = request.headers.get('Origin')
+            resp = make_response('', 204)
+            resp.headers['Access-Control-Allow-Origin'] = origin or '*'
+            resp.headers['Access-Control-Allow-Credentials'] = 'true'
+            resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+            resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Workspace-Context, X-Requested-With, Accept, Origin'
+            return resp
 
     @app.after_request
     def add_cors_headers(response):
         from flask import request
         origin = request.headers.get('Origin')
         if origin:
-            is_allowed = (
-                origin in ALLOWED_ORIGINS
-                or "proofdeck.app" in origin
-                or "certifyme.com.ng" in origin
-                or "vercel.app" in origin
-                or origin.startswith("http://localhost")
-                or origin.startswith("http://127.0.0.1")
-            )
-            if not is_allowed:
-                clean_host = origin.split("://")[-1].split(":")[0].lower()
-                from .models import Tenant
-                try:
-                    tenant = Tenant.query.filter_by(custom_domain=clean_host, domain_status='active').first()
-                    if tenant:
-                        is_allowed = True
-                except Exception:
-                    pass
-
-            if is_allowed or request.path.startswith('/api/whitelabel/config') or request.path.startswith('/api/certificates/verify/'):
-                response.headers['Access-Control-Allow-Origin'] = origin
-                response.headers['Access-Control-Allow-Credentials'] = 'true'
-                req_headers = request.headers.get('Access-Control-Request-Headers')
-                response.headers['Access-Control-Allow-Headers'] = req_headers or 'Content-Type, Authorization, X-Workspace-Context, X-Requested-With, Accept, Origin'
-                response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            req_headers = request.headers.get('Access-Control-Request-Headers')
+            response.headers['Access-Control-Allow-Headers'] = req_headers or 'Content-Type, Authorization, X-Workspace-Context, X-Requested-With, Accept, Origin'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
         return response
 
     register_blueprints(app)
