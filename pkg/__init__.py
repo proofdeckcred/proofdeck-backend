@@ -122,6 +122,8 @@ def create_app():
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = '*'
+        return response
+
     @app.before_request
     def handle_preflight():
         from flask import request, make_response
