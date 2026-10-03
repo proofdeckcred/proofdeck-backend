@@ -49,6 +49,23 @@ class Tenant(db.Model):
     linkedin_org_id = db.Column(db.String(50), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # White-Label Custom Domain & Cloudflare Integration
+    custom_domain = db.Column(db.String(255), unique=True, nullable=True, index=True)
+    cloudflare_hostname_id = db.Column(db.String(100), nullable=True)
+    domain_status = db.Column(db.String(30), default='unconfigured', nullable=False) # 'unconfigured', 'pending_dns', 'active', 'failed'
+    domain_verification_txt = db.Column(db.String(255), nullable=True)
+
+    # Branding & Customization
+    brand_logo_url = db.Column(db.Text, nullable=True)
+    brand_favicon_url = db.Column(db.Text, nullable=True)
+    brand_primary_color = db.Column(db.String(7), default='#2563EB')
+    brand_accent_color = db.Column(db.String(7), default='#1E40AF')
+    brand_font_family = db.Column(db.String(50), default='Inter')
+    hide_proofdeck_badge = db.Column(db.Boolean, default=False, nullable=False)
+    custom_support_email = db.Column(db.String(120), nullable=True)
+    custom_website_url = db.Column(db.String(255), nullable=True)
+    custom_sender_name = db.Column(db.String(100), nullable=True)
+
     owner = db.relationship('User', backref=db.backref('owned_tenant', uselist=False), foreign_keys=[owner_id])
     templates = db.relationship('Template', backref='tenant', lazy=True)
     certificates = db.relationship('Certificate', backref='tenant', lazy=True)

@@ -210,7 +210,7 @@ def _generate_visual_pdf(certificate, template, issuer):
         dynamic_data[f"{{{{{clean_key}}}}}"] = str(val) if val is not None else ""
 
     # Generate QR
-    qr_base64 = _generate_qr_base64(certificate.verification_id)
+    qr_base64 = _generate_qr_base64(certificate)
     dynamic_data["{{qr_code}}"] = f'<img src="data:image/png;base64,{qr_base64}" style="width: 100%; height: 100%;" />'
 
     html_elements = []
@@ -458,7 +458,7 @@ def _generate_visual_pdf(certificate, template, issuer):
     return _render_pdf_bytes(html_template)
 
 def _generate_html_pdf(certificate, template, issuer):
-    qr_base64 = _generate_qr_base64(certificate.verification_id)
+    qr_base64 = _generate_qr_base64(certificate)
     logo_base64 = get_image_as_base64(template.logo_url)
     background_base64 = get_image_as_base64(template.background_url)
     signature_image_base64 = None
@@ -572,9 +572,27 @@ def _generate_html_pdf(certificate, template, issuer):
         current_app.logger.error(f"Error rendering file template: {e}")
         raise e
 
-def _generate_qr_base64(data):
+def _get_certificate_verification_url(certificate_or_id):
+    if hasattr(certificate_or_id, 'verification_id'):
+        verification_id = certificate_or_id.verification_id
+        tenant = getattr(certificate_or_id, 'tenant', None)
+        if not tenant and getattr(certificate_or_id, 'tenant_id', None):
+            try:
+                from ..models import Tenant
+                tenant = Tenant.query.get(certificate_or_id.tenant_id)
+            except Exception:
+                tenant = None
+        if tenant and getattr(tenant, 'custom_domain', None) and getattr(tenant, 'domain_status', None) == 'active':
+            return f"https://{tenant.custom_domain}/verify/{verification_id}"
+    else:
+        verification_id = str(certificate_or_id)
+
+    frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app')
+    return f"{frontend_url}/verify/{verification_id}"
+
+def _generate_qr_base64(certificate_or_id):
     qr = qrcode.QRCode(version=1, box_size=10, border=4)
-    verification_url = f"{current_app.config['FRONTEND_URL']}/verify/{data}"
+    verification_url = _get_certificate_verification_url(certificate_or_id)
     qr.add_data(verification_url)
     qr_img = qr.make_image(fill_color="black", back_color="white")
     qr_buffer = BytesIO(); qr_img.save(qr_buffer, format="PNG")

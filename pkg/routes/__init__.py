@@ -11,6 +11,7 @@ from .canva import canva_bp
 from .contact import contact_bp
 from .referrals import referrals_bp
 from .team import team_bp
+from .whitelabel import whitelabel_bp
 
 #Standalones
 from .uploads import uploads_bp
@@ -51,6 +52,7 @@ def register_blueprints(app):
     app.register_blueprint(contact_bp, url_prefix='/api/contact')
     app.register_blueprint(referrals_bp, url_prefix='/api/referrals')
     app.register_blueprint(team_bp, url_prefix='/api/team')
+    app.register_blueprint(whitelabel_bp, url_prefix='/api/whitelabel')
     
     from .notifications import notifications_bp
     from .jobs import jobs_bp

@@ -2,7 +2,26 @@ from flask_mail import Message
 from flask import current_app
 
 def create_certificate_email(certificate, pdf_buffer, png_buffer=None):
-    verification_url = f"{current_app.config['FRONTEND_URL']}/verify/{certificate.verification_id}"
+    tenant = getattr(certificate, 'tenant', None)
+    if not tenant and getattr(certificate, 'tenant_id', None):
+        try:
+            from ..models import Tenant
+            tenant = Tenant.query.get(certificate.tenant_id)
+        except Exception:
+            tenant = None
+
+    if tenant and getattr(tenant, 'custom_domain', None) and getattr(tenant, 'domain_status', None) == 'active':
+        verification_url = f"https://{tenant.custom_domain}/verify/{certificate.verification_id}"
+        sender_display_name = tenant.custom_sender_name or tenant.name or 'ProofDeck'
+        is_whitelabel = True
+        hide_badge = tenant.hide_proofdeck_badge
+        brand_color = tenant.brand_primary_color or "#2563EB"
+    else:
+        verification_url = f"{current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app')}/verify/{certificate.verification_id}"
+        sender_display_name = 'ProofDeck'
+        is_whitelabel = False
+        hide_badge = False
+        brand_color = "#2563EB"
     
     # Determine wording based on type (Receipt vs Certificate)
     is_receipt = hasattr(certificate, 'template') and certificate.template.layout_style == 'receipt'
@@ -11,6 +30,8 @@ def create_certificate_email(certificate, pdf_buffer, png_buffer=None):
     header_text = "Payment Receipt" if is_receipt else f"Congratulations, {certificate.recipient_name}!"
     body_text = f"Please find attached your payment receipt for <strong>{certificate.course_title}</strong>." if is_receipt else f"You have been awarded a certificate for successfully completing: <strong>{certificate.course_title}</strong>"
     button_text = "Verify Receipt" if is_receipt else "View & Verify Certificate"
+
+    footer_notice = f"Issued by {certificate.issuer_name}" if (is_whitelabel and hide_badge) else f"Issued by {certificate.issuer_name} via ProofDeck"
 
     html_body = f"""
     <!DOCTYPE html>
@@ -22,7 +43,7 @@ def create_certificate_email(certificate, pdf_buffer, png_buffer=None):
             .container {{ width: 100%; max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }}
             .header {{ text-align: center; border-bottom: 1px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }}
             .content {{ text-align: center; color: #333; }}
-            .button {{ background-color: #2563EB; color: #ffffff !important; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; margin-top: 20px; }}
+            .button {{ background-color: {brand_color}; color: #ffffff !important; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; margin-top: 20px; }}
             .footer {{ text-align: center; font-size: 12px; color: #999; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; }}
         </style>
     </head>
@@ -38,7 +59,7 @@ def create_certificate_email(certificate, pdf_buffer, png_buffer=None):
                 <a href="{verification_url}" class="button" target="_blank">{button_text}</a>
             </div>
             <div class="footer">
-                <p>Issued by {certificate.issuer_name} via ProofDeck</p>
+                <p>{footer_notice}</p>
                 <p>Verification ID: {certificate.verification_id}</p>
             </div>
         </div>
@@ -52,7 +73,7 @@ def create_certificate_email(certificate, pdf_buffer, png_buffer=None):
 
     msg = Message(
         subject=subject,
-        sender=('ProofDeck', sender_email),
+        sender=(sender_display_name, sender_email),
         recipients=[certificate.recipient_email],
         html=html_body
     )

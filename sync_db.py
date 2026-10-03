@@ -41,6 +41,20 @@ with app.app_context():
         ("groups", "description", "TEXT NULL"),
         ("certificates", "view_count", "INTEGER NOT NULL DEFAULT 0"),
         ("certificates", "last_viewed_at", "TIMESTAMP NULL" if dialect == "postgresql" else "DATETIME NULL"),
+        # Tenants white-label columns
+        ("tenants", "custom_domain", "VARCHAR(255) NULL"),
+        ("tenants", "cloudflare_hostname_id", "VARCHAR(100) NULL"),
+        ("tenants", "domain_status", "VARCHAR(30) NOT NULL DEFAULT 'unconfigured'"),
+        ("tenants", "domain_verification_txt", "VARCHAR(255) NULL"),
+        ("tenants", "brand_logo_url", "TEXT NULL"),
+        ("tenants", "brand_favicon_url", "TEXT NULL"),
+        ("tenants", "brand_primary_color", "VARCHAR(7) NOT NULL DEFAULT '#2563EB'"),
+        ("tenants", "brand_accent_color", "VARCHAR(7) NOT NULL DEFAULT '#1E40AF'"),
+        ("tenants", "brand_font_family", "VARCHAR(50) NOT NULL DEFAULT 'Inter'"),
+        ("tenants", "hide_proofdeck_badge", "BOOLEAN NOT NULL DEFAULT FALSE"),
+        ("tenants", "custom_support_email", "VARCHAR(120) NULL"),
+        ("tenants", "custom_website_url", "VARCHAR(255) NULL"),
+        ("tenants", "custom_sender_name", "VARCHAR(100) NULL"),
     ]
 
     try:
