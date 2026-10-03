@@ -17,7 +17,7 @@ PLANS = {
     "starter": {"amount_ngn": 15000, "amount_usd": 11.35, "certificates": 100, "role": "starter"},
     "growth": {"amount_ngn": 45000, "amount_usd": 34.00, "certificates": 400, "role": "growth"},
     "pro": {"amount_ngn": 90000, "amount_usd": 68.00, "certificates": 1200, "role": "pro"},
-    "enterprise": {"amount_ngn": 250000, "amount_usd": 189.00, "certificates": 5000, "role": "enterprise"}
+    "enterprise": {"amount_ngn": 650000, "amount_usd": 490.00, "certificates": 10000, "role": "enterprise"}
 }
 
 role_order = {
