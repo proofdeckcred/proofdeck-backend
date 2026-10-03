@@ -109,13 +109,24 @@ def is_enterprise_context(user):
     """
     Returns True if the current user or active workspace organization is on the Enterprise plan.
     Works for both individual enterprise accounts and invited team members in an enterprise workspace.
+    Honors 12-month validity with a 60-day grace period before expiration lock.
     """
     if not user:
         return False
     is_comp, tenant_id, quota_holder, _ = get_active_context(user)
+    
+    target_user = user
     if is_comp and quota_holder:
-        # Check tenant owner's plan
         owner = getattr(quota_holder, 'owner', None)
-        if owner and str(getattr(owner, 'role', '')).lower() == 'enterprise':
-            return True
-    return str(getattr(user, 'role', '')).lower() == 'enterprise'
+        if owner:
+            target_user = owner
+
+    if str(getattr(target_user, 'role', '')).lower() == 'enterprise':
+        # Check annual subscription expiry if set
+        expiry = getattr(target_user, 'subscription_expiry', None)
+        if expiry:
+            grace_period_end = expiry + timedelta(days=60)
+            if datetime.utcnow() > grace_period_end:
+                return False
+        return True
+    return False

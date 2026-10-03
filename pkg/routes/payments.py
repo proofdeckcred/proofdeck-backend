@@ -14,10 +14,10 @@ payments_bp = Blueprint('payments', __name__)
 PAYSTACK_API_URL = "https://api.paystack.co"
 
 PLANS = {
-    "starter": {"amount_ngn": 15000, "amount_usd": 11.35, "certificates": 100, "role": "starter"},
-    "growth": {"amount_ngn": 45000, "amount_usd": 34.00, "certificates": 400, "role": "growth"},
-    "pro": {"amount_ngn": 90000, "amount_usd": 68.00, "certificates": 1200, "role": "pro"},
-    "enterprise": {"amount_ngn": 650000, "amount_usd": 490.00, "certificates": 10000, "role": "enterprise"}
+    "starter": {"amount_ngn": 15000, "amount_usd": 11.35, "certificates": 100, "role": "starter", "interval": "one_time"},
+    "growth": {"amount_ngn": 45000, "amount_usd": 34.00, "certificates": 400, "role": "growth", "interval": "one_time"},
+    "pro": {"amount_ngn": 90000, "amount_usd": 68.00, "certificates": 1200, "role": "pro", "interval": "one_time"},
+    "enterprise": {"amount_ngn": 1500000, "amount_usd": 1135.00, "certificates": 10000, "role": "enterprise", "interval": "yearly"}
 }
 
 role_order = {
@@ -63,6 +63,7 @@ def get_plans():
             "amount_usd": usd_price,
             "certificates": p['certificates'],
             "role": p['role'],
+            "interval": p.get('interval', 'one_time'),
             "rate": rate
         }
     return jsonify(result), 200
@@ -77,10 +78,28 @@ def fulfill_payment(payment):
         plan_details = PLANS.get(payment.plan, {})
         if plan_details:
             certs_bought = plan_details.get('certificates', 0)
-            user.cert_quota = (user.cert_quota or 0) + certs_bought
             user.role = plan_details.get('role', user.role)
-            if hasattr(user, 'owned_tenant') and user.owned_tenant:
-                user.owned_tenant.cert_quota = (user.owned_tenant.cert_quota or 0) + certs_bought
+
+            if payment.plan == 'enterprise':
+                now = datetime.utcnow()
+                rollover_credits = 0
+                # Partial rollover: If renewing an active or grace-period enterprise plan (within 60 days of expiry),
+                # up to 25% of existing unused credits carry into the new year.
+                if user.subscription_expiry and user.subscription_expiry > (now - timedelta(days=60)):
+                    current_quota = user.cert_quota or 0
+                    rollover_credits = min(int(current_quota * 0.25), 2500)
+
+                # Set new quota: 10,000 + rolled over credits
+                user.cert_quota = certs_bought + rollover_credits
+                # Subscription valid for 12 months (365 days)
+                user.subscription_expiry = now + timedelta(days=365)
+
+                if hasattr(user, 'owned_tenant') and user.owned_tenant:
+                    user.owned_tenant.cert_quota = user.cert_quota
+            else:
+                user.cert_quota = (user.cert_quota or 0) + certs_bought
+                if hasattr(user, 'owned_tenant') and user.owned_tenant:
+                    user.owned_tenant.cert_quota = (user.owned_tenant.cert_quota or 0) + certs_bought
 
             # Check for 10% Referral Bonus (only on first payment)
             referral = Referral.query.filter_by(referred_id=user.id).first()

@@ -63,6 +63,7 @@ def get_current_user():
         "personal_cert_quota": user.cert_quota,
         "signature_image_url": user.signature_image_url,
         "api_key": user.api_key,
+        "subscription_expiry": user.subscription_expiry.isoformat() if user.subscription_expiry else None,
         "company": company_data,
         "workspaces": workspaces_data
     }), 200
