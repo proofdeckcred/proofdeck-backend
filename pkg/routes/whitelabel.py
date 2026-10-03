@@ -204,6 +204,7 @@ def verify_domain_status():
         "is_active": status_res.get("is_active", False),
         "hostname_status": status_res.get("hostname_status"),
         "ssl_status": status_res.get("ssl_status"),
+        "ssl_validation_errors": status_res.get("ssl_validation_errors", []),
         "ownership_verification": status_res.get("ownership_verification")
     }), 200
 

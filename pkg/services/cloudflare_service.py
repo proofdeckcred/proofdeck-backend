@@ -72,13 +72,17 @@ def get_custom_hostname_status(hostname_id: str):
 
         is_active = (hostname_status == "active" and ssl_status == "active")
 
+        ssl_data = result.get("ssl", {})
+        ssl_validation_errors = ssl_data.get("validation_errors") or []
+
         return {
             "success": True,
             "is_active": is_active,
             "hostname_status": hostname_status,
             "ssl_status": ssl_status,
+            "ssl_validation_errors": ssl_validation_errors,
             "ownership_verification": result.get("ownership_verification"),
-            "ssl_validation_records": result.get("ssl", {}).get("validation_records"),
+            "ssl_validation_records": ssl_data.get("validation_records"),
             "result": result
         }
     except Exception as e:
