@@ -130,3 +130,31 @@ def is_enterprise_context(user):
                 return False
         return True
     return False
+
+def get_certificate_verification_url(certificate_or_id):
+    """
+    Returns the canonical verification URL for a certificate.
+    Prefers the issuer organization's active custom domain (e.g. https://credentials.myorg.com/verify/UUID)
+    if configured, otherwise defaults to the platform URL (e.g. https://www.proofdeck.app/verify/UUID).
+    """
+    from flask import current_app
+    verification_id = None
+    tenant = None
+
+    if hasattr(certificate_or_id, 'verification_id'):
+        verification_id = certificate_or_id.verification_id
+        tenant = getattr(certificate_or_id, 'tenant', None)
+        if not tenant and getattr(certificate_or_id, 'tenant_id', None):
+            try:
+                from ..models import Tenant
+                tenant = Tenant.query.get(certificate_or_id.tenant_id)
+            except Exception:
+                tenant = None
+    else:
+        verification_id = str(certificate_or_id)
+
+    if tenant and getattr(tenant, 'custom_domain', None) and getattr(tenant, 'domain_status', None) == 'active':
+        return f"https://{tenant.custom_domain}/verify/{verification_id}"
+
+    frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
+    return f"{frontend_url}/verify/{verification_id}"

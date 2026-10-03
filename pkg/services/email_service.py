@@ -1,5 +1,6 @@
 from flask_mail import Message
 from flask import current_app
+from ..utils.helpers import get_certificate_verification_url
 
 def create_certificate_email(certificate, pdf_buffer, png_buffer=None):
     tenant = getattr(certificate, 'tenant', None)
@@ -10,14 +11,14 @@ def create_certificate_email(certificate, pdf_buffer, png_buffer=None):
         except Exception:
             tenant = None
 
+    verification_url = get_certificate_verification_url(certificate)
+
     if tenant and getattr(tenant, 'custom_domain', None) and getattr(tenant, 'domain_status', None) == 'active':
-        verification_url = f"https://{tenant.custom_domain}/verify/{certificate.verification_id}"
         sender_display_name = tenant.custom_sender_name or tenant.name or 'ProofDeck'
         is_whitelabel = True
         hide_badge = tenant.hide_proofdeck_badge
         brand_color = tenant.brand_primary_color or "#2563EB"
     else:
-        verification_url = f"{current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app')}/verify/{certificate.verification_id}"
         sender_display_name = 'ProofDeck'
         is_whitelabel = False
         hide_badge = False

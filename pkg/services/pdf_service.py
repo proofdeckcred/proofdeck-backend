@@ -573,22 +573,8 @@ def _generate_html_pdf(certificate, template, issuer):
         raise e
 
 def _get_certificate_verification_url(certificate_or_id):
-    if hasattr(certificate_or_id, 'verification_id'):
-        verification_id = certificate_or_id.verification_id
-        tenant = getattr(certificate_or_id, 'tenant', None)
-        if not tenant and getattr(certificate_or_id, 'tenant_id', None):
-            try:
-                from ..models import Tenant
-                tenant = Tenant.query.get(certificate_or_id.tenant_id)
-            except Exception:
-                tenant = None
-        if tenant and getattr(tenant, 'custom_domain', None) and getattr(tenant, 'domain_status', None) == 'active':
-            return f"https://{tenant.custom_domain}/verify/{verification_id}"
-    else:
-        verification_id = str(certificate_or_id)
-
-    frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app')
-    return f"{frontend_url}/verify/{verification_id}"
+    from ..utils.helpers import get_certificate_verification_url
+    return get_certificate_verification_url(certificate_or_id)
 
 def _generate_qr_base64(certificate_or_id):
     qr = qrcode.QRCode(version=1, box_size=10, border=4)

@@ -7,7 +7,7 @@ import uuid
 # --- CHANGED IMPORTS ---
 from ..services.pdf_service import generate_certificate_pdf
 from ..services.email_service import create_certificate_email
-from ..utils.helpers import parse_smart_date
+from ..utils.helpers import parse_smart_date, get_certificate_verification_url
 from ..extensions import mail
 
 # Create a new blueprint for the versioned API
@@ -93,8 +93,7 @@ def create_certificate_via_api():
             # The certificate is still created, which is important. The external service might have its own retry logic for delivery.
             # We don't roll back the creation.
 
-        frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
-        verification_url = f"{frontend_url}/verify/{certificate.verification_id}"
+        verification_url = get_certificate_verification_url(certificate)
 
         return jsonify({
             "msg": "Certificate created and dispatched successfully.",
@@ -176,7 +175,7 @@ def get_certificate_details_api(verification_id):
         "issuer_name": cert.issuer_name,
         "issue_date": cert.issue_date.isoformat() if cert.issue_date else None,
         "status": cert.status,
-        "verification_url": f"{frontend_url}/verify/{cert.verification_id}",
+        "verification_url": get_certificate_verification_url(cert),
         "extra_fields": cert.extra_fields or {}
     }), 200
 

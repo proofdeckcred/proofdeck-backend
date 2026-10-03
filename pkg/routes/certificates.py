@@ -16,7 +16,7 @@ from ..extensions import mail
 from ..services.pdf_service import generate_certificate_pdf, generate_certificate_png
 from ..services.email_service import create_certificate_email
 from ..services.bulk_service import process_bulk_upload
-from ..utils.helpers import parse_smart_date, normalize_email, get_active_context, is_enterprise_context
+from ..utils.helpers import parse_smart_date, normalize_email, get_active_context, is_enterprise_context, get_certificate_verification_url
 
 certificate_bp = Blueprint('certificates', __name__)
 
@@ -351,6 +351,7 @@ def get_certificates():
         'issue_date': cert.issue_date.isoformat(), 
         'status': cert.status,
         'verification_id': cert.verification_id, 
+        'verification_url': get_certificate_verification_url(cert),
         'sent_at': cert.sent_at.isoformat() if cert.sent_at else None,
         'template_id': cert.template_id, 
         'group_id': cert.group_id,
@@ -516,6 +517,7 @@ def get_certificate(cert_id):
         'issuer_name': certificate.issuer_name,
         'signature': certificate.signature, 
         'verification_id': certificate.verification_id,
+        'verification_url': get_certificate_verification_url(certificate),
         'status': certificate.status, 
         'extra_fields': certificate.extra_fields
     }
@@ -828,6 +830,7 @@ def verify_certificate(verification_id):
         "issuer_name": certificate.issuer_name or (company_data["name"] if company_data else "ProofDeck"),
         "status": certificate.status,
         "verification_id": certificate.verification_id,
+        "verification_url": get_certificate_verification_url(certificate),
         "signature": certificate.signature,
         "linkedin_org_id": (company_data.get("linkedin_org_id") if company_data else None),
         "extra_fields": certificate.extra_fields
