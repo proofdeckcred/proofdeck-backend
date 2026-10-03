@@ -2,7 +2,7 @@ import re
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..models import db, User, Tenant
-from ..utils.helpers import get_active_context
+from ..utils.helpers import get_active_context, is_enterprise_context
 from ..services.cloudflare_service import (
     create_custom_hostname,
     get_custom_hostname_status,
@@ -85,6 +85,7 @@ def get_tenant_whitelabel_settings():
     fallback_origin = current_app.config.get('CLOUDFLARE_FALLBACK_ORIGIN', 'domains.proofdeck.app')
 
     return jsonify({
+        "is_enterprise": is_enterprise_context(user),
         "company_id": tenant.id,
         "company_name": tenant.name,
         "custom_domain": tenant.custom_domain,
@@ -119,6 +120,8 @@ def setup_custom_domain():
         return jsonify({"msg": "Company workspace required."}), 400
     if active_role not in ('owner', 'admin'):
         return jsonify({"msg": "Only company owners and admins can configure custom domains."}), 403
+    if not is_enterprise_context(user):
+        return jsonify({"msg": "Custom domain and white-labeling is exclusively available on the Enterprise plan. Please upgrade to Enterprise."}), 403
 
     tenant = Tenant.query.get_or_404(tenant_id)
     data = request.get_json() or {}
@@ -180,6 +183,8 @@ def verify_domain_status():
 
     if not is_comp or not tenant_id:
         return jsonify({"msg": "Company workspace required."}), 400
+    if not is_enterprise_context(user):
+        return jsonify({"msg": "Custom domain verification is exclusively available on the Enterprise plan."}), 403
 
     tenant = Tenant.query.get_or_404(tenant_id)
     if not tenant.custom_domain or not tenant.cloudflare_hostname_id:
@@ -217,6 +222,8 @@ def update_branding():
         return jsonify({"msg": "Company workspace required."}), 400
     if active_role not in ('owner', 'admin'):
         return jsonify({"msg": "Only company owners and admins can update branding."}), 403
+    if not is_enterprise_context(user):
+        return jsonify({"msg": "Branding customization is exclusively available on the Enterprise plan. Please upgrade to Enterprise."}), 403
 
     tenant = Tenant.query.get_or_404(tenant_id)
     data = request.get_json() or {}
@@ -262,6 +269,8 @@ def remove_custom_domain():
         return jsonify({"msg": "Company workspace required."}), 400
     if active_role not in ('owner', 'admin'):
         return jsonify({"msg": "Only company owners and admins can remove custom domains."}), 403
+    if not is_enterprise_context(user):
+        return jsonify({"msg": "Custom domain management is exclusively available on the Enterprise plan."}), 403
 
     tenant = Tenant.query.get_or_404(tenant_id)
     if tenant.cloudflare_hostname_id:
