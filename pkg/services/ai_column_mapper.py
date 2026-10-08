@@ -341,12 +341,14 @@ class GeminiProvider(BaseAIProvider):
     Free tier: 15 Requests/min, 1M Tokens/min, 1,500 Requests/day.
     Uses native JSON mode for strictly guaranteed structured JSON.
     """
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key
-        self.model = model
+        self.model = model or os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 
     def infer_mappings(self, headers: List[str], masked_samples: List[Dict[str, Any]]) -> Dict[str, Any]:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        candidate_models = [self.model, "gemini-flash-latest", "gemini-2.5-flash"]
+        # Deduplicate
+        candidate_models = list(dict.fromkeys(candidate_models))
         
         system_prompt = (
             "You are an expert data mapping engine for ProofDeck, a digital certificate platform. "
@@ -392,11 +394,25 @@ class GeminiProvider(BaseAIProvider):
             }
         }
 
-        resp = requests.post(url, json=payload, timeout=5)
-        resp.raise_for_status()
-        data = resp.json()
-        text_resp = data["candidates"][0]["content"]["parts"][0]["text"]
-        return json.loads(text_resp)
+        last_err = None
+        for m in candidate_models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={self.api_key}"
+            try:
+                resp = requests.post(url, json=payload, timeout=8)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    text_resp = data["candidates"][0]["content"]["parts"][0]["text"]
+                    text_resp = re.sub(r'^```json\s*', '', text_resp, flags=re.MULTILINE)
+                    text_resp = re.sub(r'```$', '', text_resp, flags=re.MULTILINE).strip()
+                    return json.loads(text_resp)
+                last_err = Exception(f"Gemini {m} returned {resp.status_code}: {resp.text[:120]}")
+            except Exception as e:
+                last_err = e
+                continue
+
+        if last_err:
+            raise last_err
+        raise RuntimeError("All Gemini model attempts failed")
 
 
 class GroqProvider(BaseAIProvider):
