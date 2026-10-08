@@ -8,7 +8,7 @@ from ..services.pdf_service import generate_certificate_pdf
 from ..extensions import mail
 from datetime import datetime
 
-def process_bulk_upload(app, file_content, filename, template_id, group_id, user_id, is_comp=False, company_id=None):
+def process_bulk_upload(app, file_content, filename, template_id, group_id, user_id, is_comp=False, company_id=None, column_mapping=None, batch_defaults=None):
     """
     Reads file content (bytes), normalizes data, and creates certificates in bulk (Background Task).
     Sends an email summary to the issuer upon completion.
@@ -42,8 +42,8 @@ def process_bulk_upload(app, file_content, filename, template_id, group_id, user
             print("Background Upload Error: File is empty")
             return
 
-        # 2. Smart Normalization
-        df = normalize_headers(df)
+        # 2. Smart Normalization (with optional custom column mapping and batch defaults)
+        df = normalize_headers(df, custom_mapping=column_mapping, batch_defaults=batch_defaults)
 
         # 3. Validation
         if 'recipient_name' not in df.columns:

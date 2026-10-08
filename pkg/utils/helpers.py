@@ -55,23 +55,60 @@ def normalize_email(email):
         return None
     return str(email).strip().lower()
 
-def normalize_headers(df):
+def normalize_headers(df, custom_mapping=None, batch_defaults=None):
     """
-    Smartly renames columns to match database requirements using synonyms.
+    Smartly renames columns to match database requirements using synonyms,
+    custom mappings, split name auto-merge, and batch defaults.
     """
-    # Map of System Field -> Possible User Inputs
+    if df.empty:
+        return df
+
+    # If custom mapping is provided (dict of source_col -> target_col)
+    if custom_mapping and isinstance(custom_mapping, dict):
+        rename_map = {}
+        for src_col, target_field in custom_mapping.items():
+            if target_field and target_field != "ignore" and src_col in df.columns:
+                rename_map[src_col] = target_field
+        if rename_map:
+            df = df.rename(columns=rename_map)
+
+    # Normalize existing columns to lowercase/snake_case
+    df.columns = [str(c).strip().lower().replace(' ', '_') for c in df.columns]
+
+    # Map of System Field -> Expanded Generous Synonyms
     synonyms = {
-        "recipient_name": ["name", "student", "student_name", "full_name", "recipient", "participant", "attendee"],
-        "recipient_email": ["email", "email_address", "mail", "contact"],
-        "course_title": ["course", "program", "event", "title", "certification", "award", "description"],
-        "issue_date": ["date", "issued_on", "award_date", "completion_date", "date_issued"],
-        "issuer_name": ["issuer", "organization", "school", "company", "signed_by"],
-        "signature": ["sign", "signature_text", "auth_sign"],
+        "recipient_name": [
+            "name", "student", "student_name", "full_name", "recipient", "participant",
+            "attendee", "employee", "candidate", "awardee", "learner", "trainee",
+            "graduate", "member", "pupil", "scholar", "person", "delegate", "inductee",
+            "honoree", "participant_name", "learner_name", "employee_name", "recipient_name"
+        ],
+        "recipient_email": [
+            "email", "email_address", "mail", "contact", "contact_email", "user_email",
+            "recipient_email", "attendee_email", "student_email", "electronic_mail", "email_id", "e_mail"
+        ],
+        "course_title": [
+            "course", "program", "programme", "event", "title", "certification",
+            "award", "achievement", "description", "training", "workshop", "certificate_title",
+            "class", "subject", "topic", "course_title", "program_name", "webinar",
+            "bootcamp", "degree", "diploma", "track", "module", "training_title", "course_name"
+        ],
+        "issue_date": [
+            "date", "issued_on", "award_date", "completion_date", "date_issued",
+            "graduation_date", "awarded_on", "date_completed", "issue_date", "event_date",
+            "finish_date", "cert_date", "given_date"
+        ],
+        "issuer_name": [
+            "issuer", "organization", "organisation", "school", "company", "signed_by",
+            "institution", "academy", "facilitator", "university", "college", "provider",
+            "authority", "certifier", "issued_by"
+        ],
+        "signature": [
+            "sign", "signature_text", "auth_sign", "signature", "signed_by", "signatory",
+            "director", "principal", "ceo", "authorized_by", "instructor", "dean", "president"
+        ],
         "amount": ["amount", "cost", "price", "fee", "payment", "total"]
     }
-
-    # Normalize user columns to lowercase/snake_case
-    df.columns = [str(c).strip().lower().replace(' ', '_') for c in df.columns]
 
     # Rename based on synonyms
     new_columns = {}
@@ -81,7 +118,32 @@ def normalize_headers(df):
                 new_columns[col] = standard_key
                 break
     
-    return df.rename(columns=new_columns)
+    if new_columns:
+        df = df.rename(columns=new_columns)
+
+    # Automatic Split Name merging: First Name + Last Name -> recipient_name
+    if 'recipient_name' not in df.columns:
+        first_cols = [c for c in df.columns if c in ['first_name', 'firstname', 'given_name', 'first', 'fname']]
+        last_cols = [c for c in df.columns if c in ['last_name', 'lastname', 'surname', 'family_name', 'last', 'lname']]
+        if first_cols and last_cols:
+            f_col = first_cols[0]
+            l_col = last_cols[0]
+            f_series = df[f_col].fillna('').astype(str).str.strip()
+            l_series = df[l_col].fillna('').astype(str).str.strip()
+            df['recipient_name'] = (f_series + ' ' + l_series).str.strip()
+
+    # Apply batch defaults for missing or blank optional fields
+    if batch_defaults and isinstance(batch_defaults, dict):
+        for field in ['issuer_name', 'issue_date', 'signature']:
+            default_val = batch_defaults.get(field)
+            if default_val:
+                if field not in df.columns:
+                    df[field] = default_val
+                else:
+                    df[field] = df[field].fillna(default_val)
+                    df.loc[df[field].astype(str).str.strip() == '', field] = default_val
+
+    return df
 
 def get_active_context(user):
     """

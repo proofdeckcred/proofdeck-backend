@@ -581,6 +581,20 @@ def bulk_create_certificates():
     """
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    is_comp, company_id, quota_holder, active_role = get_active_context(user)
+    from ..utils.helpers import is_enterprise_context
+    enterprise_mode = is_enterprise_context(user)
+    effective_role = 'enterprise' if enterprise_mode else (quota_holder.owner.role if (is_comp and hasattr(quota_holder, 'owner') and quota_holder.owner) else user.role)
+
+    # Server-side plan gating: Starter & Free cannot use bulk issuance
+    if effective_role in ['free', 'starter']:
+        return jsonify({
+            "msg": "Bulk issuance is available on Growth, Pro, and Enterprise plans. Please upgrade your plan to unlock bulk creation.",
+            "upgrade_required": True
+        }), 403
     
     if 'file' not in request.files: 
         return jsonify({"msg": "No file part"}), 400
@@ -594,7 +608,6 @@ def bulk_create_certificates():
     if not template_id or not group_id:
         return jsonify({"msg": "Template ID and Group ID are required"}), 400
 
-    is_comp, company_id, quota_holder, _ = get_active_context(user)
     template = Template.query.get(template_id)
     if not template:
         return jsonify({"msg": "Template not found"}), 404
@@ -606,6 +619,20 @@ def bulk_create_certificates():
         else:
             if template.user_id != user_id or template.tenant_id is not None:
                 return jsonify({"msg": "Permission denied"}), 403
+
+    import json
+    column_mapping = None
+    batch_defaults = None
+    if 'column_mapping' in request.form:
+        try:
+            column_mapping = json.loads(request.form.get('column_mapping'))
+        except Exception:
+            pass
+    if 'batch_defaults' in request.form:
+        try:
+            batch_defaults = json.loads(request.form.get('batch_defaults'))
+        except Exception:
+            pass
 
     # Call the Bulk Service to handle parsing and processing via Celery
     try:
@@ -627,7 +654,7 @@ def bulk_create_certificates():
         
         from ..tasks.bulk_tasks import process_bulk_upload_task
         task = process_bulk_upload_task.delay(
-            job.id, file_content_b64, filename, template.id, group_id, user.id, is_comp, company_id
+            job.id, file_content_b64, filename, template.id, group_id, user.id, is_comp, company_id, column_mapping, batch_defaults
         )
         
         job.celery_task_id = task.id
@@ -652,6 +679,62 @@ def bulk_create_certificates():
     except Exception as e:
         current_app.logger.error(f"Failed to start background process: {e}")
         return jsonify({"msg": "Failed to start processing"}), 500
+
+
+@certificate_bp.route('/bulk/ai-map', methods=['POST'])
+@jwt_required()
+def ai_map_columns():
+    """
+    Layer B AI-assisted column mapping (Pro & Enterprise only).
+    Accepts JSON with headers and sample_rows.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    from ..utils.helpers import get_active_context, is_enterprise_context
+    is_comp, company_id, quota_holder, active_role = get_active_context(user)
+    enterprise_mode = is_enterprise_context(user)
+    effective_role = 'enterprise' if enterprise_mode else (quota_holder.owner.role if (is_comp and hasattr(quota_holder, 'owner') and quota_holder.owner) else user.role)
+
+    # Server-side gating: Only Pro and Enterprise allowed
+    if effective_role not in ['pro', 'enterprise']:
+        return jsonify({
+            "msg": "AI column mapping is exclusively available on Pro and Enterprise plans. Please upgrade to Pro to unlock AI assistance.",
+            "upgrade_required": True
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+    headers = data.get('headers', [])
+    sample_rows = data.get('sample_rows', [])
+
+    if not headers or not isinstance(headers, list):
+        return jsonify({"msg": "Headers list is required"}), 400
+
+    from ..services.ai_column_mapper import infer_mapping_layer_a, infer_mapping_layer_b
+
+    # Run Layer B (AI)
+    ai_result = infer_mapping_layer_b(headers, sample_rows, user_id=user.id)
+    if ai_result:
+        return jsonify({
+            "success": True,
+            "source": "ai",
+            "mappings": ai_result.get("mappings"),
+            "split_names": ai_result.get("split_names"),
+            "is_confident": ai_result.get("is_confident", True)
+        }), 200
+
+    # Graceful fallback: return Layer A rule-based suggestions if AI is unavailable
+    rules_result = infer_mapping_layer_a(headers, sample_rows)
+    return jsonify({
+        "success": False,
+        "source": "rules_fallback",
+        "msg": "AI assistant is temporarily unavailable or not configured. Reverted to smart rule matching.",
+        "mappings": rules_result.get("mappings"),
+        "split_names": rules_result.get("split_names"),
+        "is_confident": rules_result.get("is_confident", False)
+    }), 200
 
 
 @certificate_bp.route('/<string:cert_id>/send', methods=['POST'], strict_slashes=False)
