@@ -192,6 +192,19 @@ def _generate_visual_pdf(certificate, template, issuer):
         else:
             issue_date_str = str(certificate.issue_date)
 
+    # Resolve uploaded signature image (enabled by default if issuer has uploaded one)
+    use_uploaded_sig = extra.get('use_uploaded_signature', True)
+    sig_url = getattr(issuer, 'signature_image_url', None) if issuer else None
+    if not sig_url and getattr(certificate, 'tenant_id', None):
+        try:
+            from ..models import Tenant
+            tenant = Tenant.query.get(certificate.tenant_id)
+            if tenant and tenant.owner:
+                sig_url = tenant.owner.signature_image_url
+        except Exception:
+            pass
+    signature_image_base64 = get_image_as_base64(sig_url) if (use_uploaded_sig and sig_url) else None
+
     dynamic_data = {
         "{{recipient_name}}": certificate.recipient_name or "",
         "{{course_title}}": certificate.course_title or "",
@@ -204,6 +217,8 @@ def _generate_visual_pdf(certificate, template, issuer):
     
     # Merge any other extra fields into dynamic data (both as-is and formatted)
     for key, val in extra.items():
+        if key in ('use_uploaded_signature',):
+            continue
         dynamic_data[f"{{{{{key}}}}}"] = str(val) if val is not None else ""
         # Also support key with spaces if user entered key with underscores, or vice versa
         clean_key = key.replace('_', ' ')
@@ -243,23 +258,8 @@ def _generate_visual_pdf(certificate, template, issuer):
             content = dynamic_data.get("{{qr_code}}", "")
             style += "display: flex; align-items: center; justify-content: center;"
         elif el_type == 'text' or el_type == 'placeholder':
-            text = str(el.get('text') or '')
-            for placeholder, value in dynamic_data.items():
-                if placeholder.lower() in text.lower():
-                    pattern = re.compile(re.escape(placeholder), re.IGNORECASE)
-                    text = pattern.sub(lambda m, v=value: str(v), text)
-
-            font_style_val = el.get("fontStyle", "normal")
-            font_weight = "bold" if "bold" in font_style_val else "normal"
-            font_style = "italic" if "italic" in font_style_val else "normal"
-            text_decor = el.get("textDecoration", "")
-            decor_css = ""
-            if "underline" in text_decor and "line-through" in text_decor:
-                decor_css = "text-decoration: underline line-through;"
-            elif "underline" in text_decor:
-                decor_css = "text-decoration: underline;"
-            elif "line-through" in text_decor:
-                decor_css = "text-decoration: line-through;"
+            raw_text = str(el.get('text') or '')
+            is_pure_sig_placeholder = raw_text.strip().lower() == '{{signature}}'
 
             # Vertical and horizontal alignment
             v_align = el.get('verticalAlign', 'middle')
@@ -278,25 +278,53 @@ def _generate_visual_pdf(certificate, template, issuer):
             else:
                 h_align_css = 'justify-content: flex-start; text-align: left;'
 
-            letter_spacing = el.get('letterSpacing', 0)
-            line_height = el.get('lineHeight', 1.2)
             opacity = el.get('opacity', 1.0)
 
-            style += (
-                f'font-family: {el.get("fontFamily", "sans-serif")}; '
-                f'font-size: {el.get("fontSize", 16)}px; '
-                f'color: {el.get("fill", "#000")}; '
-                f'font-style: {font_style}; '
-                f'font-weight: {font_weight}; '
-                f'letter-spacing: {letter_spacing}px; '
-                f'line-height: {line_height}; '
-                f'opacity: {opacity}; '
-                f'{decor_css} '
-                f'word-wrap: break-word; display: flex; '
-                f'{v_align_css} {h_align_css} '
-            )
-                
-            content = text.replace('\\n', '<br>').replace('\n', '<br>')
+            if is_pure_sig_placeholder and signature_image_base64:
+                style += f'opacity: {opacity}; display: flex; {v_align_css} {h_align_css}'
+                content = f'<img src="data:image/png;base64,{signature_image_base64}" style="max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block;" alt="Signature" />'
+            else:
+                text = raw_text
+                for placeholder, value in dynamic_data.items():
+                    if placeholder.lower() in text.lower():
+                        if placeholder.lower() == '{{signature}}' and signature_image_base64:
+                            sig_inline = f'<img src="data:image/png;base64,{signature_image_base64}" style="max-height: {max(32, int(el.get("height", 40)))}px; width: auto; object-fit: contain; vertical-align: middle; display: inline-block;" alt="Signature" />'
+                            pattern = re.compile(re.escape(placeholder), re.IGNORECASE)
+                            text = pattern.sub(lambda m, v=sig_inline: str(v), text)
+                        else:
+                            pattern = re.compile(re.escape(placeholder), re.IGNORECASE)
+                            text = pattern.sub(lambda m, v=value: str(v), text)
+
+                font_style_val = el.get("fontStyle", "normal")
+                font_weight = "bold" if "bold" in font_style_val else "normal"
+                font_style = "italic" if "italic" in font_style_val else "normal"
+                text_decor = el.get("textDecoration", "")
+                decor_css = ""
+                if "underline" in text_decor and "line-through" in text_decor:
+                    decor_css = "text-decoration: underline line-through;"
+                elif "underline" in text_decor:
+                    decor_css = "text-decoration: underline;"
+                elif "line-through" in text_decor:
+                    decor_css = "text-decoration: line-through;"
+
+                letter_spacing = el.get('letterSpacing', 0)
+                line_height = el.get('lineHeight', 1.2)
+
+                style += (
+                    f'font-family: {el.get("fontFamily", "sans-serif")}; '
+                    f'font-size: {el.get("fontSize", 16)}px; '
+                    f'color: {el.get("fill", "#000")}; '
+                    f'font-style: {font_style}; '
+                    f'font-weight: {font_weight}; '
+                    f'letter-spacing: {letter_spacing}px; '
+                    f'line-height: {line_height}; '
+                    f'opacity: {opacity}; '
+                    f'{decor_css} '
+                    f'word-wrap: break-word; display: flex; '
+                    f'{v_align_css} {h_align_css} '
+                )
+                    
+                content = text.replace('\\n', '<br>').replace('\n', '<br>')
 
         elif el_type == 'rect':
             fill = el.get('fill', 'transparent')
@@ -476,13 +504,33 @@ def _generate_html_pdf(certificate, template, issuer):
     qr_base64 = _generate_qr_base64(certificate)
     logo_base64 = get_image_as_base64(template.logo_url)
     background_base64 = get_image_as_base64(template.background_url)
-    signature_image_base64 = None
-    if not certificate.signature and issuer.signature_image_url:
-        signature_image_base64 = get_image_as_base64(issuer.signature_image_url)
-    
-    # Handle amount logic for receipts
+    # Handle amount logic for receipts & uploaded signature preference
     extra = certificate.extra_fields or {}
+    if isinstance(extra, str):
+        try:
+            extra = json.loads(extra)
+        except Exception:
+            extra = {}
+    elif not isinstance(extra, dict):
+        extra = {}
+
+    use_uploaded_sig = extra.get('use_uploaded_signature', True)
+    sig_url = getattr(issuer, 'signature_image_url', None) if issuer else None
+    if not sig_url and getattr(certificate, 'tenant_id', None):
+        try:
+            from ..models import Tenant
+            tenant = Tenant.query.get(certificate.tenant_id)
+            if tenant and tenant.owner:
+                sig_url = tenant.owner.signature_image_url
+        except Exception:
+            pass
+
+    signature_image_base64 = None
+    if use_uploaded_sig and sig_url:
+        signature_image_base64 = get_image_as_base64(sig_url)
+
     amount = extra.get('amount')
+    display_extra = {k: v for k, v in extra.items() if k not in ('use_uploaded_signature',)}
     
     # If no amount in extra_fields, try parsing from course title if it looks like currency
     if not amount and certificate.course_title:
@@ -516,7 +564,7 @@ def _generate_html_pdf(certificate, template, issuer):
         "qr_base64": qr_base64,
         "custom_text": template.custom_text or {},
         "signature_image_base64": signature_image_base64,
-        "extra_fields": extra,
+        "extra_fields": display_extra,
         "amount": amount
     }
     

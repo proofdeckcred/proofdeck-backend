@@ -219,12 +219,18 @@ def create_certificate():
         issue_date = parse_smart_date(data['issue_date'])
         recipient_email = normalize_email(data.get('recipient_email'))
         
-        extra_fields = data.get('extra_fields', {})
-        
+        extra_fields = data.get('extra_fields') or {}
+        if not isinstance(extra_fields, dict):
+            extra_fields = {}
+
+        use_uploaded_sig = data.get('use_uploaded_signature', extra_fields.get('use_uploaded_signature', True))
+        if 'use_uploaded_signature' in data or 'use_uploaded_signature' in extra_fields or user.signature_image_url:
+            extra_fields['use_uploaded_signature'] = bool(use_uploaded_sig)
+
         # Fallback signature logic
         sig = data.get('signature')
         if not sig:
-            if user.signature_image_url:
+            if user.signature_image_url and use_uploaded_sig:
                 sig = None  # Allow default signature image to show by keeping text empty
             else:
                 sig = user.name
@@ -508,6 +514,16 @@ def get_certificate(cert_id):
 
     template = Template.query.get_or_404(certificate.template_id)
     
+    issuer_user = User.query.get(certificate.user_id)
+    sig_img_url = getattr(issuer_user, 'signature_image_url', None) if issuer_user else None
+    if not sig_img_url and certificate.tenant_id:
+        t_obj = Tenant.query.get(certificate.tenant_id)
+        if t_obj and t_obj.owner:
+            sig_img_url = t_obj.owner.signature_image_url
+
+    extra_dict = certificate.extra_fields if isinstance(certificate.extra_fields, dict) else {}
+    use_uploaded_sig = extra_dict.get('use_uploaded_signature', True)
+
     cert_data = {
         'id': certificate.id, 
         'recipient_name': certificate.recipient_name,
@@ -516,6 +532,8 @@ def get_certificate(cert_id):
         'issue_date': certificate.issue_date.isoformat(), 
         'issuer_name': certificate.issuer_name,
         'signature': certificate.signature, 
+        'signature_image_url': sig_img_url if use_uploaded_sig else None,
+        'use_uploaded_signature': bool(use_uploaded_sig),
         'verification_id': certificate.verification_id,
         'verification_url': get_certificate_verification_url(certificate),
         'status': certificate.status, 
@@ -567,6 +585,10 @@ def update_certificate(cert_id):
     if 'issue_date' in data: cert.issue_date = parse_smart_date(data['issue_date'])
     if 'signature' in data: cert.signature = data['signature']
     if 'extra_fields' in data: cert.extra_fields = data['extra_fields']
+    if 'use_uploaded_signature' in data:
+        ef = dict(cert.extra_fields) if isinstance(cert.extra_fields, dict) else {}
+        ef['use_uploaded_signature'] = bool(data['use_uploaded_signature'])
+        cert.extra_fields = ef
     if 'template_id' in data: cert.template_id = data['template_id']
     
     db.session.commit()
@@ -902,6 +924,16 @@ def verify_certificate(verification_id):
                 "linkedin_org_id": tenant.linkedin_org_id
             }
 
+    issuer_user = User.query.get(certificate.user_id)
+    sig_img_url = getattr(issuer_user, 'signature_image_url', None) if issuer_user else None
+    if not sig_img_url and certificate.tenant_id:
+        t_obj = Tenant.query.get(certificate.tenant_id)
+        if t_obj and t_obj.owner:
+            sig_img_url = t_obj.owner.signature_image_url
+
+    extra_dict = certificate.extra_fields if isinstance(certificate.extra_fields, dict) else {}
+    use_uploaded_sig = extra_dict.get('use_uploaded_signature', True)
+
     certificate_data = {
         "id": certificate.id,
         "recipient_name": certificate.recipient_name,
@@ -915,6 +947,8 @@ def verify_certificate(verification_id):
         "verification_id": certificate.verification_id,
         "verification_url": get_certificate_verification_url(certificate),
         "signature": certificate.signature,
+        "signature_image_url": sig_img_url if use_uploaded_sig else None,
+        "use_uploaded_signature": bool(use_uploaded_sig),
         "linkedin_org_id": (company_data.get("linkedin_org_id") if company_data else None),
         "extra_fields": certificate.extra_fields
     }

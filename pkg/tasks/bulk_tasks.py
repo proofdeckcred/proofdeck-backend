@@ -150,6 +150,11 @@ def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_
                         if val_str and val_str.lower() != 'nan':
                             extra_fields[col] = val_str
 
+            if batch_defaults and isinstance(batch_defaults, dict) and 'use_uploaded_signature' in batch_defaults:
+                extra_fields['use_uploaded_signature'] = bool(batch_defaults['use_uploaded_signature'])
+            elif getattr(user, 'signature_image_url', None):
+                extra_fields['use_uploaded_signature'] = True
+
             cert = Certificate(
                 user_id=user.id,
                 tenant_id=company_id if is_comp else None,

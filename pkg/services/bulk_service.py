@@ -97,6 +97,11 @@ def process_bulk_upload(app, file_content, filename, template_id, group_id, user
                             if val_str and val_str.lower() != 'nan':
                                 extra_fields[col] = val_str
 
+                if batch_defaults and isinstance(batch_defaults, dict) and 'use_uploaded_signature' in batch_defaults:
+                    extra_fields['use_uploaded_signature'] = bool(batch_defaults['use_uploaded_signature'])
+                elif getattr(user, 'signature_image_url', None):
+                    extra_fields['use_uploaded_signature'] = True
+
                 # Create Object
                 cert = Certificate(
                     user_id=user.id,
