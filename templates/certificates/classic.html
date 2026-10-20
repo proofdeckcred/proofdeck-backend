@@ -12,15 +12,15 @@
             padding: 0;
             width: 1122px;
             height: 794px;
-            background-color: white;
-            font-family: 'Georgia', 'Times New Roman', serif;
+            background-color: #ffffff;
+            font-family: {{ font_family or "'Georgia', serif" }};
             color: #1F2937;
         }
         .container {
             width: 1122px;
             height: 794px;
             border: 16px double {{ primary_color }};
-            background-color: {{ background_style_map.get('background-color', 'white') }};
+            background-color: {{ background_style_map.get('background-color', '#ffffff') }};
             {% if background_base64 %}
             background-image: url('data:image/png;base64,{{ background_base64 }}');
             background-size: cover;
@@ -28,145 +28,190 @@
             {% endif %}
             box-sizing: border-box;
             position: relative;
-            padding: 40px;
-            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
         }
         .top-stripe {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 1122px;
-            height: 12px;
+            height: 14px;
+            width: 100%;
+            border-bottom: 4px solid {{ primary_color }};
             background: linear-gradient(to right, {{ primary_color }}, {{ secondary_color }});
+            flex-shrink: 0;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 24px 72px 16px 72px;
         }
         .logo {
-            width: 120px;
-            height: 120px;
+            width: 96px;
+            height: 96px;
             object-fit: contain;
-            margin-top: 20px;
-            margin-bottom: 20px;
-            display: inline-block;
+            margin-bottom: 14px;
         }
         .title {
+            font-size: 40px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 2px;
-            font-size: 40px;
             color: {{ primary_color }};
-            margin-top: 0;
-            margin-bottom: 10px;
+            margin: 0 0 8px 0;
+            line-height: 1.15;
         }
         .subtitle {
             font-style: italic;
             font-size: 18px;
             color: #4B5EAA;
-            margin-bottom: 20px;
+            margin: 0 0 12px 0;
         }
         .recipient {
-            font-weight: 800;
             font-size: 52px;
-            color: {{ text_style_map.get('color', '#1F2937') }};
+            font-weight: 800;
             font-family: 'Georgia', serif;
-            margin-top: 0;
-            margin-bottom: 15px;
+            color: {{ text_style_map.get('color', body_font_color or '#1F2937') }};
+            margin: 0 0 12px 0;
+            line-height: 1.15;
         }
         .body-text {
             font-style: italic;
             font-size: 18px;
-            color: #4B5EAA;
-            margin-bottom: 20px;
+            color: {{ body_font_color }};
+            max-width: 820px;
+            margin: 0 0 12px 0;
         }
         .course-title {
-            font-weight: bold;
-            text-transform: uppercase;
             font-size: 28px;
+            font-weight: 700;
+            text-transform: uppercase;
             color: {{ secondary_color }};
-            margin-bottom: 30px;
+            margin: 0 0 12px 0;
         }
         .date-line {
-            font-size: 16px;
+            font-size: 15px;
             color: {{ body_font_color }};
-            margin-bottom: 40px;
+            margin: 0 0 14px 0;
         }
-        .footer-container {
-            position: absolute;
-            bottom: 60px;
-            left: 80px;
-            width: 930px; /* 1122 - 160 margins - 32 borders */
+        .custom-fields {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            width: 760px;
+            margin: 6px auto 12px auto;
+            text-align: left;
         }
-        .footer-left {
-            float: left;
-            width: 250px;
+        .custom-field-item {
+            width: 47%;
+            border-bottom: 1px solid {{ secondary_color }};
+            padding-bottom: 4px;
+            margin-bottom: 10px;
+        }
+        .custom-field-key {
+            font-weight: 700;
+            color: #6B7280;
+            font-size: 11px;
+            text-transform: uppercase;
+            display: block;
+        }
+        .custom-field-val {
+            font-size: 15px;
+            font-weight: 600;
+            color: {{ body_font_color }};
+        }
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 0 88px 36px 88px;
+            width: 100%;
+            box-sizing: border-box;
+            flex-shrink: 0;
+        }
+        .footer-col {
+            width: 260px;
             text-align: center;
         }
-        .footer-center {
-            display: inline-block;
-            width: 150px;
-            margin: 0 auto;
+        .sig-box {
+            border-bottom: 2px solid {{ primary_color }};
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+            min-height: 48px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
         }
-        .footer-right {
-            float: right;
-            width: 250px;
-            text-align: center;
+        .sig-text {
+            font-weight: 700;
+            font-size: 18px;
+            color: {{ body_font_color or '#1F2937' }};
         }
-        .line {
-            border-top: 2px solid {{ primary_color }};
-            width: 200px;
-            margin: 0 auto 10px auto;
-        }
-        .footer-bold {
-            font-weight: bold;
-            font-size: 16px;
-            margin: 0;
-        }
-        .footer-sub {
+        .sig-label {
             color: #6B7280;
             font-size: 12px;
-            margin: 0;
-        }
-        .qr-code {
-            width: 80px;
-            height: 80px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="top-stripe"></div>
-        
-        {% if logo_base64 %}
-        <img src="data:image/png;base64,{{ logo_base64 }}" class="logo">
-        {% endif %}
-        
-        <h1 class="title">{{ custom_text.get('title', 'Certificate of Completion') }}</h1>
-        <p class="subtitle">{{ custom_text.get('subtitle', 'This is to certify that') }}</p>
-        
-        <h2 class="recipient">{{ recipient_name }}</h2>
-        
-        <p class="body-text">{{ custom_text.get('body', 'has successfully completed') }}</p>
-        <p class="course-title">{{ course_title }}</p>
-        
-        <p class="date-line">{{ custom_text.get('date_prefix', 'Awarded on') }} {{ issue_date }}</p>
-        
-        <div class="footer-container">
-            <div class="footer-left">
-                {% if signature_image_base64 %}
-                    <img src="data:image/png;base64,{{ signature_image_base64 }}" style="height: 48px; display: block; margin: 0 auto 5px auto;" alt="Signature">
-                {% else %}
-                    <p class="footer-bold">{{ signature if signature else issuer_name }}</p>
-                {% endif %}
-                <div class="line"></div>
-                <p class="footer-sub">{{ custom_text.get('signature_label', 'Signature') }}</p>
+
+        <div class="main-content">
+            {% if logo_base64 %}
+            <img src="data:image/png;base64,{{ logo_base64 }}" class="logo">
+            {% endif %}
+
+            <h1 class="title">{{ custom_text.get('title', 'Certificate of Completion') }}</h1>
+            <p class="subtitle">{{ custom_text.get('subtitle', 'This is to certify that') }}</p>
+
+            <h2 class="recipient">{{ recipient_name }}</h2>
+
+            <p class="body-text">{{ custom_text.get('body', 'has successfully completed the course') }}</p>
+            <p class="course-title">{{ course_title }}</p>
+            <p class="date-line">{{ custom_text.get('date_prefix', 'Awarded on') }} {{ issue_date }}</p>
+
+            {% if extra_fields %}
+            <div class="custom-fields">
+                {% for key, value in extra_fields.items() %}
+                    {% if key != 'amount' %}
+                    <div class="custom-field-item">
+                        <span class="custom-field-key">{{ key }}</span>
+                        <span class="custom-field-val">{{ value }}</span>
+                    </div>
+                    {% endif %}
+                {% endfor %}
             </div>
-            
-            <div class="footer-center">
-                <img src="data:image/png;base64,{{ qr_base64 }}" class="qr-code">
+            {% endif %}
+        </div>
+
+        <div class="footer">
+            <div class="footer-col">
+                <div class="sig-box">
+                    {% if signature_image_base64 %}
+                        <img src="data:image/png;base64,{{ signature_image_base64 }}" style="height: 44px; object-fit: contain;" alt="Signature">
+                    {% else %}
+                        <span class="sig-text">{{ signature if signature else issuer_name }}</span>
+                    {% endif %}
+                </div>
+                <span class="sig-label">{{ custom_text.get('signature_label', 'Signature') }}</span>
             </div>
-            
-            <div class="footer-right">
-                <p class="footer-bold">{{ verification_id if verification_id else 'PENDING' }}</p>
-                <div class="line"></div>
-                <p class="footer-sub">{{ custom_text.get('verification_label', 'Verification ID') }}</p>
+
+            <div style="text-align: center;">
+                <div style="background-color: #ffffff; padding: 6px; border-radius: 6px; display: inline-block;">
+                    <img src="data:image/png;base64,{{ qr_base64 }}" style="width: 68px; height: 68px; display: block;">
+                </div>
+                <div style="font-size: 10px; color: #6B7280; margin-top: 4px;">ID: {{ verification_id if verification_id else 'PENDING' }}</div>
+            </div>
+
+            <div class="footer-col">
+                <div class="sig-box">
+                    <span class="sig-text">{{ issuer_name }}</span>
+                </div>
+                <span class="sig-label">Issuer</span>
             </div>
         </div>
     </div>

@@ -1,182 +1,107 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
+    <title>Certificate</title>
     <style>
         @page {
             size: 1122px 794px;
             margin: 0;
+        }
+        * {
+            box-sizing: border-box;
         }
         body {
             margin: 0;
             padding: 0;
             width: 1122px;
             height: 794px;
-            background-color: white;
-            font-family: 'Arial', 'Helvetica', sans-serif;
-            color: #111827;
+            font-family: {{ font_family | default("'Montserrat', sans-serif") }};
+            overflow: hidden;
+            -webkit-print-color-adjust: exact;
         }
-        .container {
+        .stage {
             width: 1122px;
             height: 794px;
-            padding: 60px;
+            background-color: #ffffff;
             position: relative;
-            background-color: {{ background_style_map.get('background-color', 'white') }};
-            box-sizing: border-box;
-        }
-        .sidebar {
-            width: 96px;
-            height: 794px;
-            position: absolute;
-            left: 0;
-            top: 0;
-            background-color: {{ primary_color }};
-            padding: 40px 20px;
-            box-sizing: border-box;
+            padding: 48px;
             display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-        }
-        .rotated-text-container {
-            position: absolute;
-            bottom: 120px;
-            left: 12px;
-            transform-origin: bottom left;
-            transform: rotate(-90deg);
-        }
-        .rotated-text {
-            color: white;
-            font-size: 18px;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            white-space: nowrap;
-            opacity: 0.5;
-        }
-        .main-content {
-            padding-left: 100px;
-            height: 674px;
-            position: relative;
-        }
-        .logo {
-            height: 60px;
-            object-fit: contain;
-            margin-bottom: 40px;
-        }
-        .title {
-            font-size: 64px;
-            font-weight: 900;
-            color: #111827;
-            letter-spacing: -2px;
-            line-height: 1;
-            margin-top: 0;
-            margin-bottom: 20px;
-            text-transform: uppercase;
-        }
-        .recipient {
-            font-size: 52px;
-            font-weight: 800;
-            color: {{ text_style_map.get('color', '#111827') }};
-            font-family: {{ text_style_map.get('font-family', 'Arial, sans-serif') }};
-            margin-top: 0;
-            margin-bottom: 15px;
-        }
-        .body-text {
-            font-style: italic;
-            font-size: 18px;
-            color: #4B5563;
-            margin-top: 0;
-            margin-bottom: 20px;
-        }
-        .course {
-            font-size: 32px;
-            font-weight: 900;
-            color: {{ secondary_color }};
-            margin-top: 0;
-            margin-bottom: 30px;
-        }
-        .footer {
-            position: absolute;
-            bottom: 20px;
-            left: 100px;
-            width: 762px;
-        }
-        .signature-box {
-            float: left;
-            width: 250px;
-        }
-        .signature-line {
-            border-bottom: 2px solid #D1D5DB;
-            height: 48px;
-            margin-bottom: 8px;
-        }
-        .signature-img {
-            height: 48px;
-            width: auto;
-            object-fit: contain;
-            display: block;
-        }
-        .signature-text {
-            font-size: 12px;
-            color: #6B7280;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin: 0;
-        }
-        .date-box {
-            float: right;
-            width: 200px;
-        }
-        .qr-code {
-            position: absolute;
-            bottom: 20px;
-            right: 0;
-            width: 80px;
-            height: 80px;
+            flex-direction: row;
+            overflow: hidden;
+            {% if background_image_base64 %}
+            background-image: url('{{ background_image_base64 }}');
+            background-size: cover;
+            background-position: center;
+            {% endif %}
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="sidebar">
-            <div class="rotated-text-container">
-                <span class="rotated-text">{{ custom_text.get('sidebar_text', 'CERTIFIED DOCUMENT') }}</span>
+    <div class="stage">
+        <div style="width: 96px; height: 100%; position: absolute; left: 0; top: 0; background-color: {{ primary_color | default('#111827') }}; display: flex; flex-direction: column; justify-content: flex-end; padding: 24px;">
+            <div style="color: #ffffff; font-size: 12px; font-weight: 700; transform: rotate(-90deg); transform-origin: bottom left; white-space: nowrap; opacity: 0.6; position: absolute; bottom: 128px; left: 36px; letter-spacing: 0.08em;">
+                CERTIFICATE ID: {{ verification_id or '000000' }}
             </div>
         </div>
-        
-        <div class="main-content">
+
+        <div style="padding-left: 112px; display: flex; flex-direction: column; justify-content: center; width: 100%;">
             {% if logo_base64 %}
-            <img src="data:image/png;base64,{{ logo_base64 }}" class="logo">
+            <img src="{{ logo_base64 }}" alt="Logo" style="height: 56px; object-fit: contain; margin-bottom: 24px; align-self: flex-start;" />
             {% endif %}
-            
-            <h1 class="title">{{ custom_text.get('title', 'Certificate of Completion') }}</h1>
-            
-            <h2 class="recipient">{{ recipient_name }}</h2>
-            
-            <p class="body-text">{{ custom_text.get('body', 'has successfully completed') }}</p>
-            <p class="course">{{ course_title }}</p>
-            
-            <div class="footer">
-                <div class="signature-box">
-                    <div class="signature-line">
+
+            <h1 style="font-size: 64px; font-weight: 900; color: {{ body_font_color | default('#111827') }}; letter-spacing: -0.04em; line-height: 1; margin: 0 0 8px 0;">
+                CERTIFICATE
+            </h1>
+            <h2 style="font-size: 24px; font-weight: 500; color: #9ca3af; margin: 0 0 44px 0; letter-spacing: 0.05em;">
+                OF COMPLETION
+            </h2>
+
+            <p style="font-size: 14px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 6px 0;">
+                Proudly Presented To
+            </p>
+            <p style="font-size: 42px; font-weight: 700; color: {{ body_font_color | default('#111827') }}; margin: 0 0 28px 0;">
+                {{ recipient_name }}
+            </p>
+
+            <p style="color: #4b5563; max-width: 640px; margin: 0 0 28px 0; font-size: 16px; line-height: 1.6;">
+                {{ custom_text.body or 'has successfully completed the requirements for' }}
+                <span style="font-weight: 700; color: {{ primary_color | default('#111827') }};">{{ course_title }}</span> on {{ issue_date }}.
+            </p>
+
+            {% if extra_fields %}
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; max-width: 640px;">
+                {% for key, value in extra_fields.items() %}
+                    {% if key != 'amount' %}
+                    <div style="display: flex; gap: 8px; font-size: 14px; align-items: baseline;">
+                        <span style="font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; width: 140px; flex-shrink: 0;">
+                            {{ key }}:
+                        </span>
+                        <span style="font-weight: 700; color: #111827;">{{ value }}</span>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div style="display: flex; gap: 48px; margin-top: 12px;">
+                <div>
+                    <div class="font-signature" style="height: 48px; width: 160px; border-bottom: 1px solid #d1d5db; margin-bottom: 8px; display: flex; align-items: flex-end; font-size: 24px; padding-bottom: 4px;">
                         {% if signature_image_base64 %}
-                            <img src="data:image/png;base64,{{ signature_image_base64 }}" class="signature-img" alt="Signature">
+                            <img src="{{ signature_image_base64 }}" alt="Signature" style="height: 38px; object-fit: contain;" />
                         {% else %}
-                            <span style="font-family: 'Great Vibes', cursive, serif; font-size: 24px;">{{ signature if signature else 'Sign' }}</span>
+                            {{ signature or 'Sign' }}
                         {% endif %}
                     </div>
-                    <p class="signature-text">{{ custom_text.get('signature_label', 'Signature') }}</p>
+                    <p style="font-size: 12px; font-weight: 700; color: #111827; margin: 0;">Signature</p>
                 </div>
-                
-                <div class="date-box">
-                    <div class="signature-line" style="line-height: 48px; font-weight: bold; font-size: 16px;">
+                <div>
+                    <div style="height: 48px; width: 160px; border-bottom: 1px solid #d1d5db; margin-bottom: 8px; display: flex; align-items: flex-end; font-size: 14px; padding-bottom: 4px; color: #374151;">
                         {{ issue_date }}
                     </div>
-                    <p class="signature-text">{{ custom_text.get('date_label', 'Date Issued') }}</p>
+                    <p style="font-size: 12px; font-weight: 700; color: #111827; margin: 0;">Date</p>
                 </div>
             </div>
-            
-            <img src="data:image/png;base64,{{ qr_base64 }}" class="qr-code">
         </div>
     </div>
 </body>

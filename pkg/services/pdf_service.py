@@ -538,31 +538,46 @@ def _generate_html_pdf(certificate, template, issuer):
         match = re.search(r'[$₦]\s?[\d,]+(\.\d{2})?', certificate.course_title)
         amount = match.group(0) if match else "PAID"
 
+    raw_custom_text = template.custom_text or {}
+    if isinstance(raw_custom_text, str):
+        try:
+            raw_custom_text = json.loads(raw_custom_text)
+        except Exception:
+            raw_custom_text = {}
+    elif not isinstance(raw_custom_text, dict):
+        raw_custom_text = {}
+    # Filter out empty strings so .get('title', 'Default') falls back properly
+    clean_custom_text = {k: v for k, v in raw_custom_text.items() if v is not None and str(v).strip() != ""}
+
+    primary_color = template.primary_color or "#0284C7"
+    secondary_color = template.secondary_color or "#E2E8F0"
+    body_font_color = template.body_font_color or "#1E293B"
+
     context = {
-        "recipient_name": certificate.recipient_name,
-        "recipient_email": certificate.recipient_email,
-        "course_title": certificate.course_title,
-        "issue_date": certificate.issue_date.strftime('%B %d, %Y'),
-        "signature": certificate.signature or certificate.issuer_name,
-        "issuer_name": certificate.issuer_name,
-        "verification_id": certificate.verification_id,
+        "recipient_name": certificate.recipient_name or "Recipient Name",
+        "recipient_email": certificate.recipient_email or "recipient@example.com",
+        "course_title": certificate.course_title or "Course Title",
+        "issue_date": certificate.issue_date.strftime('%B %d, %Y') if hasattr(certificate.issue_date, 'strftime') else str(certificate.issue_date),
+        "signature": certificate.signature or certificate.issuer_name or "Authorized",
+        "issuer_name": certificate.issuer_name or "Issuer Name",
+        "verification_id": certificate.verification_id or "PENDING",
         "frontend_url": (current_app.config.get('FRONTEND_URL') or "proofdeck.app").replace('https://', '').replace('http://', ''),
         "logo_base64": logo_base64,
         "background_base64": background_base64,
-        "primary_color": template.primary_color,
-        "primary_color_alpha": f"{template.primary_color}22",
-        "secondary_color": template.secondary_color,
-        "body_font_color": template.body_font_color,
+        "primary_color": primary_color,
+        "primary_color_alpha": f"{primary_color}22",
+        "secondary_color": secondary_color,
+        "body_font_color": body_font_color,
         "font_family": {
-            "Georgia": "'Merriweather', serif",
-            "Times New Roman": "'Playfair Display', serif",
-            "Arial": "'Open Sans', sans-serif",
-            "Verdana": "'Lato', sans-serif",
+            "Georgia": "'Merriweather', Georgia, serif",
+            "Times New Roman": "'Playfair Display', 'Times New Roman', serif",
+            "Arial": "'Open Sans', Arial, sans-serif",
+            "Verdana": "'Lato', Verdana, sans-serif",
             "Lato": "'Lato', sans-serif",
             "Roboto": "'Roboto', sans-serif"
-        }.get(template.font_family, template.font_family),
+        }.get(template.font_family, template.font_family or "'Lato', sans-serif"),
         "qr_base64": qr_base64,
-        "custom_text": template.custom_text or {},
+        "custom_text": clean_custom_text,
         "signature_image_base64": signature_image_base64,
         "extra_fields": display_extra,
         "amount": amount
@@ -570,6 +585,11 @@ def _generate_html_pdf(certificate, template, issuer):
     
     # Process layout_data for styles
     layout_data = template.layout_data or {}
+    if isinstance(layout_data, str):
+        try:
+            layout_data = json.loads(layout_data)
+        except Exception:
+            layout_data = {}
     context['text_style'] = react_style_to_css(layout_data.get('textStyle'))
     context['background_style'] = react_style_to_css(layout_data.get('backgroundStyle'))
     
@@ -610,8 +630,9 @@ def _generate_html_pdf(certificate, template, issuer):
     try:
         html_content = render_template(template_file, **context)
         
-        # Inject Product Sans font-face definition globally
+        # Inject Google Fonts & Product Sans font-face definition globally
         font_inject = """
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Great+Vibes&family=JetBrains+Mono:wght@400;700&family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,400&family=Montserrat:wght@300;400;600;700;800;900&family=Open+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Roboto:wght@300;400;500;700;900&display=swap">
         <style>
             @font-face {
               font-family: 'Product Sans';
@@ -624,6 +645,9 @@ def _generate_html_pdf(certificate, template, issuer):
               font-style: normal;
               font-weight: 750;
               src: url(https://fonts.gstatic.com/s/productsans/v5/ea8acIL1mXDmi1A-4C2hnT9-pQURs1S4Uo3Al709Yuw.woff2) format('woff2');
+            }
+            .font-script, .font-signature {
+              font-family: 'Great Vibes', cursive, serif;
             }
         </style>
         """

@@ -1,150 +1,108 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
+    <title>Certificate</title>
     <style>
         @page {
             size: 1122px 794px;
             margin: 0;
+        }
+        * {
+            box-sizing: border-box;
         }
         body {
             margin: 0;
             padding: 0;
             width: 1122px;
             height: 794px;
-            background-color: white;
-            font-family: 'Arial', 'Helvetica', sans-serif;
-            color: #1F2937;
+            font-family: {{ font_family | default("'Lato', sans-serif") }};
+            overflow: hidden;
+            -webkit-print-color-adjust: exact;
         }
-        .container {
+        .stage {
             width: 1122px;
             height: 794px;
-            border: 12px solid {{ primary_color }};
-            box-sizing: border-box;
+            background-color: #fffbf0;
             position: relative;
-            padding: 80px;
-            background-color: {{ background_style_map.get('background-color', 'white') }};
-        }
-        .art-bg {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 300px;
-            height: 300px;
-            opacity: 0.15;
-            background-color: {{ secondary_color }};
-            border-radius: 0 0 0 100%;
-        }
-        .logo {
-            height: 80px;
-            margin-bottom: 30px;
-            object-fit: contain;
-        }
-        .title {
-            font-size: 36px;
-            font-weight: bold;
-            color: {{ primary_color }};
-            margin-top: 0;
-            margin-bottom: 20px;
-            letter-spacing: 1px;
-        }
-        .recipient {
-            font-size: 54px;
-            font-weight: 800;
-            color: #111827;
-            margin-top: 0;
-            margin-bottom: 20px;
-        }
-        .body-text {
-            font-style: italic;
-            font-size: 18px;
-            color: #4B5563;
-            margin-top: 0;
-            margin-bottom: 20px;
-        }
-        .course {
-            font-size: 28px;
-            font-weight: bold;
-            color: {{ secondary_color }};
-            margin-top: 0;
-            margin-bottom: 40px;
-        }
-        .footer {
-            position: absolute;
-            bottom: 80px;
-            left: 80px;
-            width: 962px;
-        }
-        .footer-left {
-            float: left;
-            width: 250px;
-        }
-        .footer-right {
-            float: right;
-            width: 250px;
-            text-align: right;
-        }
-        .signature-line {
-            border-bottom: 2px solid {{ primary_color }};
-            height: 48px;
-            margin-bottom: 8px;
-            text-align: center;
-        }
-        .signature-img {
-            height: 48px;
-            width: auto;
-            object-fit: contain;
-            display: block;
-            margin: 0 auto;
-        }
-        .footer-sub {
-            color: #6B7280;
-            font-size: 12px;
-            margin: 0;
-            text-transform: uppercase;
-        }
-        .qr-code {
-            width: 80px;
-            height: 80px;
+            overflow: hidden;
+            {% if background_image_base64 %}
+            background-image: url('{{ background_image_base64 }}');
+            background-size: cover;
+            background-position: center;
+            {% endif %}
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="art-bg"></div>
-        
-        {% if logo_base64 %}
-        <img src="data:image/png;base64,{{ logo_base64 }}" class="logo">
-        {% endif %}
-        
-        <h1 class="title">{{ custom_text.get('title', 'CREATIVE ACHIEVEMENT AWARD') }}</h1>
-        <h2 class="recipient">{{ recipient_name }}</h2>
-        
-        <p class="body-text">{{ custom_text.get('body', 'is recognized for completing') }}</p>
-        <p class="course">{{ course_title }}</p>
-        
-        <div class="footer">
-            <div class="footer-left">
-                <div class="signature-line">
-                    {% if signature_image_base64 %}
-                        <img src="data:image/png;base64,{{ signature_image_base64 }}" class="signature-img" alt="Signature">
-                    {% else %}
-                        <span style="font-family: 'Great Vibes', cursive, serif; font-size: 26px;">{{ signature if signature else 'Director' }}</span>
-                    {% endif %}
+    <div class="stage">
+        <div style="position: absolute; top: -100px; right: -100px; width: 380px; height: 380px; border-radius: 9999px; opacity: 0.55; background: radial-gradient(circle, {{ primary_color | default('#ff6b6b') }} 0%, transparent 70%);"></div>
+        <div style="position: absolute; bottom: -100px; left: -100px; width: 380px; height: 380px; border-radius: 9999px; opacity: 0.55; background: radial-gradient(circle, {{ secondary_color | default('#4ecdc4') }} 0%, transparent 70%);"></div>
+
+        <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; z-index: 10; text-align: center; padding: 40px 64px;">
+            <h1 style="font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-size: 64px; color: {{ primary_color | default('#ff6b6b') }}; margin: 0 0 24px 0; opacity: 0.9;">
+                {{ custom_text.title or 'Certificate' }}
+            </h1>
+
+            <div style="border: 1.5px solid #111827; padding: 44px 64px; background-color: rgba(255, 255, 255, 0.82); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06); min-width: 580px; max-width: 760px;">
+                <p style="text-transform: uppercase; font-size: 12px; letter-spacing: 0.3em; color: #6b7280; margin: 0 0 16px 0;">
+                    Presented To
+                </p>
+                <h2 style="font-size: 38px; font-weight: 700; color: {{ body_font_color | default('#111827') }}; margin: 0 0 12px 0;">
+                    {{ recipient_name }}
+                </h2>
+                <div style="width: 48px; height: 4px; background-color: #111827; margin: 0 auto 16px auto;"></div>
+                <p style="color: #4b5563; font-style: italic; margin: 0; font-size: 16px;">
+                    {{ custom_text.body or 'For artistic excellence in' }}
+                </p>
+                <h3 style="font-size: 24px; font-weight: 700; margin: 8px 0 20px 0; color: #1f2937;">
+                    {{ course_title }}
+                </h3>
+
+                {% if extra_fields %}
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; width: 100%; padding: 0 32px;">
+                    {% for key, value in extra_fields.items() %}
+                        {% if key != 'amount' %}
+                        <div style="display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px;">
+                            <span style="font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em;">
+                                {{ key }}
+                            </span>
+                            <span style="font-weight: 600; color: #111827;">
+                                {{ value }}
+                            </span>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
                 </div>
-                <p class="footer-sub">{{ custom_text.get('signature_label', 'Authorized Signature') }}</p>
-            </div>
-            
-            <div style="position: absolute; left: 441px; bottom: 0px;">
-                <img src="data:image/png;base64,{{ qr_base64 }}" class="qr-code">
-            </div>
-            
-            <div class="footer-right">
-                <div class="signature-line" style="line-height: 48px; font-weight: bold; font-size: 16px;">
-                    {{ issue_date }}
+                {% endif %}
+
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; padding-top: 12px; border-top: 1px solid #f3f4f6;">
+                    <div style="text-align: left;">
+                        <p style="font-size: 12px; color: #9ca3af; text-transform: uppercase; margin: 0;">
+                            {{ issue_date }}
+                        </p>
+                    </div>
+
+                    <div style="text-align: right;">
+                        {% if signature_image_base64 %}
+                            <img src="{{ signature_image_base64 }}" alt="Signature" style="height: 32px; object-fit: contain; display: block; margin-left: auto; margin-bottom: 2px;" />
+                        {% elif signature %}
+                            <p class="font-signature" style="font-size: 20px; margin: 0 0 2px 0; color: #111827;">
+                                {{ signature }}
+                            </p>
+                        {% endif %}
+                        <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #9ca3af;">
+                            {{ custom_text.signature_title or 'Authorized Signature' }}
+                        </span>
+                    </div>
                 </div>
-                <p class="footer-sub">Date Issued</p>
             </div>
+
+            {% if logo_base64 %}
+            <div style="margin-top: 24px; opacity: 0.7;">
+                <img src="{{ logo_base64 }}" style="height: 42px; object-fit: contain;" alt="Logo" />
+            </div>
+            {% endif %}
         </div>
     </div>
 </body>
