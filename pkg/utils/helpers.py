@@ -134,7 +134,7 @@ def normalize_headers(df, custom_mapping=None, batch_defaults=None):
 
     # Apply batch defaults for missing or blank optional fields
     if batch_defaults and isinstance(batch_defaults, dict):
-        for field in ['issuer_name', 'issue_date', 'signature']:
+        for field in ['course_title', 'issuer_name', 'issue_date', 'signature']:
             default_val = batch_defaults.get(field)
             if default_val:
                 if field not in df.columns:

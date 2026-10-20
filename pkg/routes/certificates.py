@@ -193,9 +193,9 @@ def create_certificate():
     user = User.query.get_or_404(user_id)
     data = request.get_json()
 
-    required_fields = ['template_id', 'recipient_name', 'course_title', 'issue_date']
+    required_fields = ['template_id', 'recipient_name']
     if not all(field in data and data[field] for field in required_fields):
-        return jsonify({"msg": "Missing required fields"}), 400
+        return jsonify({"msg": "Missing required fields (Template and Recipient Name are required)"}), 400
 
     template = Template.query.get(data['template_id'])
     if not template:
@@ -216,7 +216,7 @@ def create_certificate():
 
     try:
         # Use Utils for parsing
-        issue_date = parse_smart_date(data['issue_date'])
+        issue_date = parse_smart_date(data.get('issue_date'))
         recipient_email = normalize_email(data.get('recipient_email'))
         
         extra_fields = data.get('extra_fields') or {}
@@ -251,7 +251,7 @@ def create_certificate():
             group_id=data.get('group_id') or None,
             recipient_name=data['recipient_name'],
             recipient_email=recipient_email, 
-            course_title=data['course_title'],
+            course_title=data.get('course_title') or "",
             issuer_name=issuer_name,
             issue_date=issue_date,
             signature=sig,

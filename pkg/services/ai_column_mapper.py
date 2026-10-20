@@ -27,8 +27,8 @@ TARGET_FIELDS = {
         ]
     },
     "recipient_email": {
-        "required": True,
-        "description": "Email address of recipient for delivery & verification",
+        "required": False,
+        "description": "Email address of recipient for delivery & verification (optional)",
         "synonyms": [
             "email", "e-mail", "email address", "mail", "contact email", "user email",
             "recipient email", "attendee email", "student email", "electronic mail",
@@ -36,8 +36,8 @@ TARGET_FIELDS = {
         ]
     },
     "course_title": {
-        "required": True,
-        "description": "Title of the course, event, training, or certification",
+        "required": False,
+        "description": "Title of the course, event, training, or certification (optional)",
         "synonyms": [
             "course", "programme", "program", "training", "workshop", "certificate title",
             "award", "achievement", "event", "class", "subject", "topic", "course title",
@@ -312,11 +312,11 @@ def infer_mapping_layer_a(headers: List[str], sample_rows: List[List[Any]]) -> D
             }
 
     # 3. Determine overall confidence
-    # Mandatory fields: recipient_name, recipient_email, course_title
+    # Only recipient_name is strictly compulsory
     mandatory_mapped = all(
         result["mappings"].get(req, {}).get("source_column") is not None and
         result["mappings"].get(req, {}).get("confidence", 0) >= 0.75
-        for req in ["recipient_name", "recipient_email", "course_title"]
+        for req in ["recipient_name"]
     )
     result["is_confident"] = mandatory_mapped
 
@@ -354,8 +354,8 @@ class GeminiProvider(BaseAIProvider):
             "You are an expert data mapping engine for ProofDeck, a digital certificate platform. "
             "Your task is to map spreadsheet columns to ProofDeck's six standard fields:\n"
             "1. recipient_name (required: full name of student, attendee, employee, or honoree)\n"
-            "2. recipient_email (required: email address)\n"
-            "3. course_title (required: name of course, program, workshop, award, or certification)\n"
+            "2. recipient_email (optional: email address)\n"
+            "3. course_title (optional: name of course, program, workshop, award, or certification)\n"
             "4. issuer_name (optional: school, academy, company, or organization issuing the cert)\n"
             "5. issue_date (optional: date awarded, completed, or issued)\n"
             "6. signature (optional: signer name, director, CEO, or instructor)\n\n"
@@ -644,7 +644,7 @@ def infer_mapping_layer_b(
             "split_names": validated_split,
             "is_confident": all(
                 validated_mappings.get(k, {}).get("source_column") is not None
-                for k in ["recipient_name", "recipient_email", "course_title"]
+                for k in ["recipient_name"]
             ),
             "source": "ai"
         }
