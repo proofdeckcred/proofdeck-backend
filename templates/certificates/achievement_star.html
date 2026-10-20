@@ -28,8 +28,8 @@
             position: relative;
             overflow: hidden;
             display: flex;
-            {% if background_image_base64 %}
-            background-image: url('{{ background_image_base64 }}');
+            {% if background_base64 %}
+            background-image: url('data:image/png;base64,{{ background_base64 }}');
             background-size: cover;
             background-position: center;
             {% endif %}
@@ -51,7 +51,7 @@
             <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
                 <div style="background-color: rgba(255, 255, 255, 0.12); padding: 10px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
                     {% if logo_base64 %}
-                    <img src="{{ logo_base64 }}" style="height: 36px; object-fit: contain;" alt="Logo" />
+                    <img src="data:image/png;base64,{{ logo_base64 }}" style="height: 36px; object-fit: contain;" alt="Logo" />
                     {% else %}
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="#facc15">
                         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
@@ -126,7 +126,7 @@
                         {{ custom_text.signature_title or 'Authorized Signature' }}
                     </p>
                     {% if signature_image_base64 %}
-                        <img src="{{ signature_image_base64 }}" alt="Signature" style="height: 34px; object-fit: contain; background-color: rgba(255,255,255,0.9); padding: 2px 8px; border-radius: 4px;" />
+                        <img src="data:image/png;base64,{{ signature_image_base64 }}" alt="Signature" style="height: 34px; object-fit: contain; background-color: rgba(255,255,255,0.9); padding: 2px 8px; border-radius: 4px;" />
                     {% else %}
                         <p class="font-signature" style="font-size: 22px; color: #facc15; margin: 0;">
                             {{ signature }}

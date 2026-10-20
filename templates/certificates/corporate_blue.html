@@ -28,8 +28,8 @@
             border: 20px solid #ffffff;
             outline: 1px solid #e5e7eb;
             overflow: hidden;
-            {% if background_image_base64 %}
-            background-image: url('{{ background_image_base64 }}');
+            {% if background_base64 %}
+            background-image: url('data:image/png;base64,{{ background_base64 }}');
             background-size: cover;
             background-position: center;
             {% endif %}
@@ -44,7 +44,7 @@
         <div style="position: relative; z-index: 10; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; padding: 28px 48px;">
             <div style="margin-top: 8px;">
                 {% if logo_base64 %}
-                <img src="{{ logo_base64 }}" style="height: 64px; background-color: #ffffff; padding: 8px 14px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); object-fit: contain;" alt="Logo" />
+                <img src="data:image/png;base64,{{ logo_base64 }}" style="height: 64px; background-color: #ffffff; padding: 8px 14px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); object-fit: contain;" alt="Logo" />
                 {% else %}
                 <div style="height: 64px; width: 64px; background-color: #ffffff; border-radius: 9999px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: center; color: {{ primary_color | default('#0056b3') }}; font-weight: 800; font-size: 20px;">
                     ★
@@ -92,7 +92,7 @@
                 <div style="text-align: center; min-width: 180px;">
                     <div style="min-height: 40px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px;">
                         {% if signature_image_base64 %}
-                            <img src="{{ signature_image_base64 }}" alt="Signature" style="height: 38px; object-fit: contain; margin: 0 auto;" />
+                            <img src="data:image/png;base64,{{ signature_image_base64 }}" alt="Signature" style="height: 38px; object-fit: contain; margin: 0 auto;" />
                         {% else %}
                             <p class="font-script" style="font-size: 26px; margin: 0;">{{ signature or 'Jane Doe' }}</p>
                         {% endif %}

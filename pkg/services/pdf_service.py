@@ -62,7 +62,6 @@ def memoized_url_fetcher(url, *args, **kwargs):
         return {'string': b'', 'mime_type': 'text/plain'}
 
 
-@lru_cache(maxsize=256)
 def get_image_as_base64(image_path):
     if not image_path:
         return None

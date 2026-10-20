@@ -29,8 +29,8 @@
             align-items: center;
             padding: 44px;
             overflow: hidden;
-            {% if background_image_base64 %}
-            background-image: url('{{ background_image_base64 }}');
+            {% if background_base64 %}
+            background-image: url('data:image/png;base64,{{ background_base64 }}');
             background-size: cover;
             background-position: center;
             {% endif %}
@@ -73,7 +73,7 @@
                     </h1>
                 </div>
                 {% if logo_base64 %}
-                <img src="{{ logo_base64 }}" style="height: 56px; object-fit: contain;" alt="Logo" />
+                <img src="data:image/png;base64,{{ logo_base64 }}" style="height: 56px; object-fit: contain;" alt="Logo" />
                 {% endif %}
             </div>
 
@@ -110,7 +110,7 @@
                         {{ custom_text.signature_title or 'Signature' }}
                     </p>
                     {% if signature_image_base64 %}
-                        <img src="{{ signature_image_base64 }}" alt="Signature" style="height: 36px; object-fit: contain; display: block; margin-left: auto; margin-top: 2px;" />
+                        <img src="data:image/png;base64,{{ signature_image_base64 }}" alt="Signature" style="height: 36px; object-fit: contain; display: block; margin-left: auto; margin-top: 2px;" />
                     {% else %}
                         <p class="font-script" style="font-size: 22px; color: #334155; margin: 0;">
                             {{ signature or 'Manager' }}

@@ -34,8 +34,8 @@
             padding: 40px 64px;
             text-align: center;
             overflow: hidden;
-            {% if background_image_base64 %}
-            background-image: url('{{ background_image_base64 }}');
+            {% if background_base64 %}
+            background-image: url('data:image/png;base64,{{ background_base64 }}');
             background-size: cover;
             background-position: center;
             {% endif %}
@@ -48,7 +48,7 @@
         <div style="position: absolute; top: 16px; right: 16px; bottom: 16px; left: 16px; border: 1px solid rgba(192, 160, 98, 0.3);"></div>
 
         {% if logo_base64 %}
-        <img src="{{ logo_base64 }}" alt="Logo" style="height: 64px; object-fit: contain; margin-bottom: 16px;" />
+        <img src="data:image/png;base64,{{ logo_base64 }}" alt="Logo" style="height: 64px; object-fit: contain; margin-bottom: 16px;" />
         {% else %}
         <div style="width: 64px; height: 64px; margin-bottom: 16px; color: #c0a062;">
             <svg fill="currentColor" viewBox="0 0 24 24" width="64" height="64">
@@ -108,7 +108,7 @@
                     {{ custom_text.signature_title or 'Signature' }}
                 </p>
                 {% if signature_image_base64 %}
-                    <img src="{{ signature_image_base64 }}" alt="Signature" style="height: 36px; object-fit: contain; margin: 2px auto 0 auto; display: block;" />
+                    <img src="data:image/png;base64,{{ signature_image_base64 }}" alt="Signature" style="height: 36px; object-fit: contain; margin: 2px auto 0 auto; display: block;" />
                 {% else %}
                     <p class="font-script" style="font-size: 22px; color: #6b7280; margin: 0;">
                         {{ signature or 'Authorized' }}

@@ -29,8 +29,8 @@
             display: flex;
             flex-direction: row;
             overflow: hidden;
-            {% if background_image_base64 %}
-            background-image: url('{{ background_image_base64 }}');
+            {% if background_base64 %}
+            background-image: url('data:image/png;base64,{{ background_base64 }}');
             background-size: cover;
             background-position: center;
             {% endif %}
@@ -47,7 +47,7 @@
 
         <div style="padding-left: 112px; display: flex; flex-direction: column; justify-content: center; width: 100%;">
             {% if logo_base64 %}
-            <img src="{{ logo_base64 }}" alt="Logo" style="height: 56px; object-fit: contain; margin-bottom: 24px; align-self: flex-start;" />
+            <img src="data:image/png;base64,{{ logo_base64 }}" alt="Logo" style="height: 56px; object-fit: contain; margin-bottom: 24px; align-self: flex-start;" />
             {% endif %}
 
             <h1 style="font-size: 64px; font-weight: 900; color: {{ body_font_color | default('#111827') }}; letter-spacing: -0.04em; line-height: 1; margin: 0 0 8px 0;">
@@ -88,7 +88,7 @@
                 <div>
                     <div class="font-signature" style="height: 48px; width: 160px; border-bottom: 1px solid #d1d5db; margin-bottom: 8px; display: flex; align-items: flex-end; font-size: 24px; padding-bottom: 4px;">
                         {% if signature_image_base64 %}
-                            <img src="{{ signature_image_base64 }}" alt="Signature" style="height: 38px; object-fit: contain;" />
+                            <img src="data:image/png;base64,{{ signature_image_base64 }}" alt="Signature" style="height: 38px; object-fit: contain;" />
                         {% else %}
                             {{ signature or 'Sign' }}
                         {% endif %}

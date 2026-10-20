@@ -26,8 +26,8 @@
             background-color: #fffbf0;
             position: relative;
             overflow: hidden;
-            {% if background_image_base64 %}
-            background-image: url('{{ background_image_base64 }}');
+            {% if background_base64 %}
+            background-image: url('data:image/png;base64,{{ background_base64 }}');
             background-size: cover;
             background-position: center;
             {% endif %}
@@ -85,7 +85,7 @@
 
                     <div style="text-align: right;">
                         {% if signature_image_base64 %}
-                            <img src="{{ signature_image_base64 }}" alt="Signature" style="height: 32px; object-fit: contain; display: block; margin-left: auto; margin-bottom: 2px;" />
+                            <img src="data:image/png;base64,{{ signature_image_base64 }}" alt="Signature" style="height: 32px; object-fit: contain; display: block; margin-left: auto; margin-bottom: 2px;" />
                         {% elif signature %}
                             <p class="font-signature" style="font-size: 20px; margin: 0 0 2px 0; color: #111827;">
                                 {{ signature }}
@@ -100,7 +100,7 @@
 
             {% if logo_base64 %}
             <div style="margin-top: 24px; opacity: 0.7;">
-                <img src="{{ logo_base64 }}" style="height: 42px; object-fit: contain;" alt="Logo" />
+                <img src="data:image/png;base64,{{ logo_base64 }}" style="height: 42px; object-fit: contain;" alt="Logo" />
             </div>
             {% endif %}
         </div>

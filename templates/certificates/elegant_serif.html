@@ -32,8 +32,8 @@
             text-align: center;
             border: 16px double {{ primary_color | default('#4a3b32') }};
             overflow: hidden;
-            {% if background_image_base64 %}
-            background-image: url('{{ background_image_base64 }}');
+            {% if background_base64 %}
+            background-image: url('data:image/png;base64,{{ background_base64 }}');
             background-size: cover;
             background-position: center;
             {% endif %}
@@ -43,7 +43,7 @@
 <body>
     <div class="stage">
         {% if logo_base64 %}
-        <img src="{{ logo_base64 }}" alt="Logo" style="height: 72px; object-fit: contain; margin-bottom: 20px; opacity: 0.85;" />
+        <img src="data:image/png;base64,{{ logo_base64 }}" alt="Logo" style="height: 72px; object-fit: contain; margin-bottom: 20px; opacity: 0.85;" />
         {% endif %}
 
         <h1 style="font-size: 34px; font-family: Georgia, serif; font-style: italic; margin: 0 0 10px 0; color: #1f2937; font-weight: 700;">
@@ -86,7 +86,7 @@
             <div style="display: flex; flex-direction: column; align-items: center;">
                 <div style="width: 84px; height: 84px; border-radius: 9999px; border: 2px dashed {{ secondary_color | default('#c5a880') }}; display: flex; align-items: center; justify-content: center; padding: 8px;">
                     <div style="width: 100%; height: 100%; border-radius: 9999px; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; text-align: center; color: #4b5563; line-height: 1.2;">
-                        OFFICIAL<br />SEAL
+                        <span>OFFICIAL<br />SEAL</span>
                     </div>
                 </div>
                 {% if issue_date %}
@@ -99,7 +99,7 @@
             <div style="display: flex; flex-direction: column; align-items: center;">
                 <div class="font-signature" style="width: 200px; border-bottom: 1px solid #1f2937; margin-bottom: 8px; text-align: center; font-size: 24px; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 4px; min-height: 44px;">
                     {% if signature_image_base64 %}
-                        <img src="{{ signature_image_base64 }}" alt="Signature" style="height: 38px; object-fit: contain;" />
+                        <img src="data:image/png;base64,{{ signature_image_base64 }}" alt="Signature" style="height: 38px; object-fit: contain;" />
                     {% else %}
                         {{ signature or 'Director' }}
                     {% endif %}
