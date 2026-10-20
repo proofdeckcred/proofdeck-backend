@@ -11,7 +11,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 template_bp = Blueprint('templates', __name__)
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'svg'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -33,7 +33,7 @@ def extract_and_save_base64_images(layout_data, user_id):
     bg = layout_data.get('background')
     if isinstance(bg, dict):
         bg_img = bg.get('image')
-        if bg_img and isinstance(bg_img, str) and bg_img.startswith('data:image/'):
+        if bg_img and isinstance(bg_img, str) and bg_img.startswith('data:image/') and ';base64,' in bg_img:
             try:
                 header, encoded = bg_img.split(';base64,', 1)
                 ext = 'png'
@@ -41,6 +41,8 @@ def extract_and_save_base64_images(layout_data, user_id):
                     ext = 'jpg'
                 elif 'webp' in header:
                     ext = 'webp'
+                elif 'svg' in header:
+                    ext = 'svg'
                 filename = secure_filename(f"{user_id}_bg_{uuid.uuid4().hex[:8]}.{ext}")
                 filepath = os.path.join(upload_folder, filename)
                 with open(filepath, 'wb') as f:
@@ -53,7 +55,7 @@ def extract_and_save_base64_images(layout_data, user_id):
     elements = layout_data.get('elements', [])
     for el in elements:
         src = el.get('src')
-        if src and isinstance(src, str) and src.startswith('data:image/'):
+        if src and isinstance(src, str) and src.startswith('data:image/') and ';base64,' in src:
             try:
                 header, encoded = src.split(';base64,', 1)
                 ext = 'png'
@@ -61,6 +63,8 @@ def extract_and_save_base64_images(layout_data, user_id):
                     ext = 'jpg'
                 elif 'webp' in header:
                     ext = 'webp'
+                elif 'svg' in header:
+                    ext = 'svg'
                 filename = secure_filename(f"{user_id}_asset_{uuid.uuid4().hex[:8]}.{ext}")
                 filepath = os.path.join(upload_folder, filename)
                 with open(filepath, 'wb') as f:
@@ -99,7 +103,7 @@ def create_custom_template():
         if file and allowed_file(file.filename):
             upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
             os.makedirs(upload_folder, exist_ok=True)
-            filename = secure_filename(f"{user_id}_custom_{file.filename}")
+            filename = secure_filename(f"{user_id}_custom_{uuid.uuid4().hex[:6]}_{file.filename}")
             file_path = os.path.join(upload_folder, filename)
             file.save(file_path)
             background_url = f"/uploads/{filename}"
@@ -107,7 +111,7 @@ def create_custom_template():
                 layout_data['background'] = {}
             layout_data['background']['image'] = background_url
         else:
-            return jsonify({"msg": "Invalid file type. Please use PNG or JPG."}), 400
+            return jsonify({"msg": "Invalid file type. Please use PNG, JPG, WEBP, or SVG."}), 400
     else:
         # Check if layout_data has a background image (preset or uploaded data URL or path)
         background_img = layout_data.get('background', {}).get('image')
@@ -167,7 +171,7 @@ def update_custom_template(template_id):
         if file and allowed_file(file.filename):
             upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
             os.makedirs(upload_folder, exist_ok=True)
-            filename = secure_filename(f"{user_id}_custom_{template.id}_{file.filename}")
+            filename = secure_filename(f"{user_id}_custom_{template.id}_{uuid.uuid4().hex[:6]}_{file.filename}")
             file_path = os.path.join(upload_folder, filename)
             file.save(file_path)
             
@@ -178,14 +182,14 @@ def update_custom_template(template_id):
                 layout_data['background'] = {}
             layout_data['background']['image'] = background_url
     else:
-        # Preserve existing background image if not explicitly provided in layout_data
-        bg_image = layout_data.get('background', {}).get('image')
-        if not bg_image and template.background_url:
+        bg_dict = layout_data.get('background', {})
+        if 'image' in bg_dict:
+            bg_image = bg_dict.get('image')
+            template.background_url = bg_image if bg_image else None
+        elif template.background_url:
             if 'background' not in layout_data:
                 layout_data['background'] = {}
             layout_data['background']['image'] = template.background_url
-        elif bg_image:
-            template.background_url = bg_image
             
     template.layout_data = layout_data
     flag_modified(template, "layout_data")

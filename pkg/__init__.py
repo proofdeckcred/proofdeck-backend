@@ -69,6 +69,14 @@ def create_app():
     upload_path = os.environ.get('UPLOAD_FOLDER') or os.path.abspath(os.path.join(app.root_path, '..', 'uploads'))
     os.makedirs(upload_path, exist_ok=True)
     app.config['UPLOAD_FOLDER'] = upload_path
+
+    # Allow up to 50MB for certificate template uploads & form payloads (prevents Werkzeug 413 on large layout_data/images)
+    max_upload_bytes = 50 * 1024 * 1024
+    app.config['MAX_CONTENT_LENGTH'] = max_upload_bytes
+    app.config['MAX_FORM_MEMORY_SIZE'] = max_upload_bytes
+    if hasattr(app, 'request_class') and app.request_class is not None:
+        app.request_class.max_form_memory_size = max_upload_bytes
+        app.request_class.max_content_length = max_upload_bytes
     
     # Initialize other extensions AFTER config and CORS
     db.init_app(app)
@@ -158,6 +166,18 @@ def create_app():
         resp.headers['Access-Control-Allow-Origin'] = origin if origin else '*'
         resp.headers['Access-Control-Allow-Credentials'] = 'true'
         return resp, 404
+
+    @app.errorhandler(413)
+    def request_entity_too_large(error):
+        from flask import request
+        origin = request.headers.get('Origin', '*')
+        resp = jsonify({
+            "msg": "The uploaded certificate file is too large. Please upload an image under 50MB.",
+            "error": "payload_too_large"
+        })
+        resp.headers['Access-Control-Allow-Origin'] = origin if origin else '*'
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        return resp, 413
 
     @app.errorhandler(500)
     def internal_error(error):

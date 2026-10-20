@@ -214,7 +214,22 @@ def _generate_visual_pdf(certificate, template, issuer):
     dynamic_data["{{qr_code}}"] = f'<img src="data:image/png;base64,{qr_base64}" style="width: 100%; height: 100%;" />'
 
     html_elements = []
+    if background.get('border'):
+        b_color = background.get('borderColor', '#1e3a8a')
+        b_accent = background.get('borderAccent', '#d97706')
+        b_width = background.get('borderWidth', 4)
+        html_elements.append(
+            f'<div style="position: absolute; left: 20px; top: 20px; width: {page_width - 40}px; height: {page_height - 40}px; '
+            f'border: {b_width}px solid {b_color}; box-sizing: border-box; pointer-events: none;"></div>'
+        )
+        html_elements.append(
+            f'<div style="position: absolute; left: 28px; top: 28px; width: {page_width - 56}px; height: {page_height - 56}px; '
+            f'border: 1.5px dashed {b_accent}; box-sizing: border-box; pointer-events: none;"></div>'
+        )
+
     for el in elements:
+        if el.get('visible') is False:
+            continue
         style = (
             f'position: absolute; left: {el.get("x", 0)}px; top: {el.get("y", 0)}px; '
             f'width: {el.get("width", 200)}px; height: {el.get("height", 30)}px; '
