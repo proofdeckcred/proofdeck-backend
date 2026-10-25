@@ -93,12 +93,16 @@ def get_group_details(group_id):
         'status': c.status
     } for c in group.certificates]
     default_template_id = group.certificates[0].template_id if group.certificates else None
-    return jsonify({
+    group_meta = {
         "id": group.id,
         "name": group.name,
         "description": group.description or "",
         "template_id": default_template_id,
         "created_at": group.created_at.isoformat(),
+    }
+    return jsonify({
+        **group_meta,
+        "group": group_meta,
         "certificates": certificates_data
     }), 200
 
@@ -125,7 +129,7 @@ def bulk_update_group_certificates(group_id):
         group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
 
     data = request.get_json() or {}
-    rows = data.get('rows', [])
+    rows = data.get('rows') or data.get('certificates') or []
     template_id = data.get('template_id')
     batch_defaults = data.get('batch_defaults') or {}
     resend_emails = bool(data.get('resend_emails', False))
