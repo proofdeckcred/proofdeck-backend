@@ -79,20 +79,242 @@ def get_group_details(group_id):
         
     certificates_data = [{
         'id': c.id,
+        'template_id': c.template_id,
         'recipient_name': c.recipient_name,
         'recipient_email': c.recipient_email,
         'course_title': c.course_title,
-        'issue_date': c.issue_date.isoformat(),
+        'issuer_name': c.issuer_name,
+        'signature': c.signature,
+        'extra_fields': c.extra_fields or {},
+        'verification_id': c.verification_id,
+        'issue_date': c.issue_date.isoformat() if c.issue_date else None,
         'sent_at': c.sent_at.isoformat() if c.sent_at else None,
         'view_count': c.view_count or 0,
         'status': c.status
     } for c in group.certificates]
+    default_template_id = group.certificates[0].template_id if group.certificates else None
     return jsonify({
         "id": group.id,
         "name": group.name,
         "description": group.description or "",
+        "template_id": default_template_id,
         "created_at": group.created_at.isoformat(),
         "certificates": certificates_data
+    }), 200
+
+@groups_bp.route('/<int:group_id>/bulk-update', methods=['PUT', 'POST'])
+@jwt_required()
+def bulk_update_group_certificates(group_id):
+    """
+    Updates all certificates in a group from the Bulk Edit spreadsheet view.
+    Supports updating existing rows (0 credit cost), creating new rows (1 credit each),
+    removing deleted rows, and optionally triggering bulk email (re)send.
+    """
+    import uuid
+    from ..models import Tenant, QuotaTransaction, BackgroundJob, Notification
+    from ..utils.helpers import parse_smart_date, normalize_email
+    from ..tasks.bulk_tasks import process_bulk_email_task
+
+    user_id = int(get_jwt_identity())
+    user = User.query.get_or_404(user_id)
+    is_comp, tenant_id, quota_holder, _ = get_active_context(user)
+
+    if is_comp:
+        group = Group.query.filter_by(id=group_id, tenant_id=tenant_id).first_or_404()
+    else:
+        group = Group.query.filter_by(id=group_id, user_id=user_id, tenant_id=None).first_or_404()
+
+    data = request.get_json() or {}
+    rows = data.get('rows', [])
+    template_id = data.get('template_id')
+    batch_defaults = data.get('batch_defaults') or {}
+    resend_emails = bool(data.get('resend_emails', False))
+    delete_missing = bool(data.get('delete_missing', True))
+
+    if not rows or not isinstance(rows, list):
+        return jsonify({"msg": "Please provide at least one valid recipient row."}), 400
+
+    template = None
+    if template_id:
+        template = Template.query.get(template_id)
+        if not template:
+            return jsonify({"msg": "Selected template not found."}), 404
+        if not template.is_public:
+            if is_comp and template.tenant_id != tenant_id:
+                return jsonify({"msg": "Template permission denied"}), 403
+            elif not is_comp and (template.user_id != user_id or template.tenant_id is not None):
+                return jsonify({"msg": "Template permission denied"}), 403
+
+    existing_certs_by_id = {c.id: c for c in group.certificates}
+
+    # Count how many brand-new rows are being created so we can check credit balance
+    new_rows_count = 0
+    for r in rows:
+        row_id = r.get('id')
+        try:
+            row_id = int(row_id) if row_id is not None and str(row_id).strip() != '' else None
+        except (ValueError, TypeError):
+            row_id = None
+        if not row_id or row_id not in existing_certs_by_id:
+            if str(r.get('recipient_name') or '').strip():
+                new_rows_count += 1
+
+    if new_rows_count > 0 and quota_holder.cert_quota < new_rows_count:
+        return jsonify({
+            "msg": f"Adding {new_rows_count} new recipient(s) requires {new_rows_count} credit(s), but you have {quota_holder.cert_quota} available."
+        }), 403
+
+    core_keys = {'id', 'recipient_name', 'recipient_email', 'course_title', 'issuer_name', 'issue_date', 'signature', 'verification_id'}
+    seen_existing_ids = set()
+    updated_count = 0
+    created_count = 0
+    deleted_count = 0
+
+    default_issuer = batch_defaults.get('issuer_name')
+    if not default_issuer:
+        if is_comp:
+            active_tenant = Tenant.query.get(tenant_id)
+            default_issuer = active_tenant.name if active_tenant else user.name
+        else:
+            default_issuer = user.name
+
+    use_uploaded_sig = batch_defaults.get('use_uploaded_signature', True)
+
+    for r in rows:
+        recipient_name = str(r.get('recipient_name') or '').strip()
+        if not recipient_name:
+            continue
+
+        row_id = r.get('id')
+        try:
+            row_id = int(row_id) if row_id is not None and str(row_id).strip() != '' else None
+        except (ValueError, TypeError):
+            row_id = None
+
+        recipient_email = normalize_email(r.get('recipient_email'))
+        course_title = str(r.get('course_title') or batch_defaults.get('course_title') or '').strip()
+        issuer_name = str(r.get('issuer_name') or default_issuer or '').strip()
+        issue_date = parse_smart_date(r.get('issue_date') or batch_defaults.get('issue_date'))
+        sig_val = str(r.get('signature') or batch_defaults.get('signature') or '').strip()
+        if not sig_val:
+            sig_val = None if (user.signature_image_url and use_uploaded_sig) else user.name
+
+        # Collect custom column values
+        row_custom_extras = {}
+        for k, v in r.items():
+            if k not in core_keys and v is not None and str(v).strip() != '':
+                row_custom_extras[k] = str(v).strip()
+
+        if row_id and row_id in existing_certs_by_id:
+            cert = existing_certs_by_id[row_id]
+            seen_existing_ids.add(row_id)
+            cert.recipient_name = recipient_name
+            cert.recipient_email = recipient_email
+            cert.course_title = course_title
+            cert.issuer_name = issuer_name
+            cert.issue_date = issue_date
+            cert.signature = sig_val
+            if template:
+                cert.template_id = template.id
+
+            # Preserve internal settings like cert_styles while updating custom fields
+            prev_extra = dict(cert.extra_fields) if isinstance(cert.extra_fields, dict) else {}
+            preserved = {}
+            for internal_k in ('cert_styles', 'use_uploaded_signature', 'amount'):
+                if internal_k in prev_extra:
+                    preserved[internal_k] = prev_extra[internal_k]
+            if 'use_uploaded_signature' in batch_defaults or user.signature_image_url:
+                preserved['use_uploaded_signature'] = bool(use_uploaded_sig)
+            cert.extra_fields = {**preserved, **row_custom_extras}
+            updated_count += 1
+        else:
+            target_template_id = template.id if template else (group.certificates[0].template_id if group.certificates else None)
+            if not target_template_id:
+                return jsonify({"msg": "Please select a certificate template."}), 400
+            extra_fields = {**row_custom_extras}
+            if 'use_uploaded_signature' in batch_defaults or user.signature_image_url:
+                extra_fields['use_uploaded_signature'] = bool(use_uploaded_sig)
+            new_cert = Certificate(
+                user_id=user_id,
+                tenant_id=tenant_id if is_comp else None,
+                template_id=target_template_id,
+                group_id=group.id,
+                recipient_name=recipient_name,
+                recipient_email=recipient_email,
+                course_title=course_title,
+                issuer_name=issuer_name,
+                issue_date=issue_date,
+                signature=sig_val,
+                extra_fields=extra_fields,
+                verification_id=str(uuid.uuid4())
+            )
+            quota_holder.cert_quota -= 1
+            db.session.add(new_cert)
+            db.session.flush()
+            try:
+                txn = QuotaTransaction(
+                    tenant_id=tenant_id if is_comp else None,
+                    user_id=user_id,
+                    certificate_id=new_cert.id,
+                    amount=-1
+                )
+                db.session.add(txn)
+            except Exception:
+                pass
+            created_count += 1
+
+    if delete_missing:
+        for existing_id, existing_cert in list(existing_certs_by_id.items()):
+            if existing_id not in seen_existing_ids:
+                db.session.delete(existing_cert)
+                deleted_count += 1
+
+    db.session.commit()
+
+    job_id = None
+    if resend_emails:
+        db.session.refresh(group)
+        certs_with_email = [c for c in group.certificates if c.recipient_email]
+        if certs_with_email:
+            job = BackgroundJob(
+                user_id=user.id,
+                tenant_id=tenant_id if is_comp else None,
+                job_type='bulk_send',
+                status='pending',
+                total_items=len(certs_with_email)
+            )
+            db.session.add(job)
+            db.session.commit()
+            task = process_bulk_email_task.delay(
+                job.id, group.id, user.id, is_comp, tenant_id, True
+            )
+            job.celery_task_id = task.id
+            start_notif = Notification(
+                user_id=user.id,
+                title="Batch updated & email dispatch started",
+                message=f"Saved changes to '{group.name}' and sending {len(certs_with_email)} emails in the background...",
+                type="info",
+                category="bulk_send",
+                reference_id=job.id
+            )
+            db.session.add(start_notif)
+            db.session.commit()
+            job_id = job.id
+
+    msg_parts = [f"Updated {updated_count} certificate{'s' if updated_count != 1 else ''}"]
+    if created_count > 0:
+        msg_parts.append(f"added {created_count} new")
+    if deleted_count > 0:
+        msg_parts.append(f"removed {deleted_count}")
+    if resend_emails and job_id:
+        msg_parts.append("and queued emails for delivery")
+
+    return jsonify({
+        "msg": ", ".join(msg_parts) + "!",
+        "updated": updated_count,
+        "created": created_count,
+        "deleted": deleted_count,
+        "job_id": job_id
     }), 200
 
 @groups_bp.route('/<int:group_id>', methods=['PUT', 'PATCH'])
@@ -299,7 +521,7 @@ def send_bulk_email_for_group(group_id):
     db.session.commit()
 
     task = process_bulk_email_task.delay(
-        job.id, group.id, user.id, is_comp, tenant_id
+        job.id, group.id, user.id, is_comp, tenant_id, bool(force_resend)
     )
     job.celery_task_id = task.id
 

@@ -245,9 +245,9 @@ def process_bulk_upload_task(self, job_id, file_content_b64, filename, template_
 
 
 @celery.task(bind=True)
-def process_bulk_email_task(self, job_id, group_id, user_id, is_comp=False, tenant_id=None):
+def process_bulk_email_task(self, job_id, group_id, user_id, is_comp=False, tenant_id=None, force_resend=False):
     """
-    Celery task for sending bulk emails to unsent certificates in a group with live progress tracking.
+    Celery task for sending bulk emails to certificates in a group with live progress tracking.
     """
     job = BackgroundJob.query.get(job_id)
     if not job:
@@ -270,7 +270,12 @@ def process_bulk_email_task(self, job_id, group_id, user_id, is_comp=False, tena
         db.session.commit()
         return
 
-    certificates_to_send = [cert for cert in group.certificates if not cert.sent_at]
+    if force_resend:
+        certificates_to_send = list(group.certificates)
+    else:
+        certificates_to_send = [cert for cert in group.certificates if not cert.sent_at]
+        if not certificates_to_send and group.certificates:
+            certificates_to_send = list(group.certificates)
     job.total_items = len(certificates_to_send)
     job.processed_items = 0
     job.failed_items = 0

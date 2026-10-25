@@ -214,9 +214,15 @@ def _generate_visual_pdf(certificate, template, issuer):
         "{{amount}}": amount_text
     }
     
+    # Extract per-certificate style overrides (font size, font family, color, offsets, autoFit)
+    cert_styles = extra.get('cert_styles') if isinstance(extra.get('cert_styles'), dict) else {}
+    auto_fit_enabled = cert_styles.get('autoFit', True) is not False
+    field_style_overrides = cert_styles.get('fields') if isinstance(cert_styles.get('fields'), dict) else {}
+    element_style_overrides = cert_styles.get('elements') if isinstance(cert_styles.get('elements'), dict) else {}
+
     # Merge any other extra fields into dynamic data (both as-is and formatted)
     for key, val in extra.items():
-        if key in ('use_uploaded_signature',):
+        if key in ('use_uploaded_signature', 'cert_styles'):
             continue
         dynamic_data[f"{{{{{key}}}}}"] = str(val) if val is not None else ""
         # Also support key with spaces if user entered key with underscores, or vice versa
@@ -241,12 +247,51 @@ def _generate_visual_pdf(certificate, template, issuer):
             f'border: 1.5px dashed {b_accent}; box-sizing: border-box; pointer-events: none;"></div>'
         )
 
-    for el in elements:
+    import math
+    for idx, el in enumerate(elements):
         if el.get('visible') is False:
             continue
+
+        raw_text_check = str(el.get('text') or '')
+        matched_field_key = None
+        placeholder_matches = re.findall(r'\{\{\s*([^}]+?)\s*\}\}', raw_text_check)
+        if placeholder_matches:
+            matched_field_key = placeholder_matches[0].strip().lower().replace(' ', '_')
+
+        el_id_str = str(el.get('id')) if el.get('id') is not None else None
+        field_ovr = (
+            field_style_overrides.get(matched_field_key)
+            or (field_style_overrides.get(placeholder_matches[0].strip()) if placeholder_matches else None)
+            or {}
+        ) if matched_field_key else {}
+        el_ovr = (
+            (element_style_overrides.get(el_id_str) if el_id_str else None)
+            or element_style_overrides.get(str(idx))
+            or {}
+        )
+        ovr = {**(field_ovr if isinstance(field_ovr, dict) else {}), **(el_ovr if isinstance(el_ovr, dict) else {})}
+
+        try:
+            offset_x = float(ovr.get('offsetX') or 0)
+        except (ValueError, TypeError):
+            offset_x = 0.0
+        try:
+            offset_y = float(ovr.get('offsetY') or 0)
+        except (ValueError, TypeError):
+            offset_y = 0.0
+
+        el_x = float(el.get("x", 0) or 0) + offset_x
+        el_y = float(el.get("y", 0) or 0) + offset_y
+        el_w = float(ovr.get("width") or el.get("width", 200) or 200)
+        el_h = float(el.get("height", 30) or 30)
+        orig_w = float(el.get("width", 200) or 200)
+        h_align = ovr.get('align') or el.get('align', 'left')
+        if ovr.get("width") and h_align == 'center':
+            el_x -= (el_w - orig_w) / 2.0
+
         style = (
-            f'position: absolute; left: {el.get("x", 0)}px; top: {el.get("y", 0)}px; '
-            f'width: {el.get("width", 200)}px; height: {el.get("height", 30)}px; '
+            f'position: absolute; left: {el_x}px; top: {el_y}px; '
+            f'width: {el_w}px; height: {el_h}px; '
             f'transform-origin: 0 0; transform: rotate({el.get("rotation", 0)}deg); '
         )
         content = ''
@@ -269,7 +314,6 @@ def _generate_visual_pdf(certificate, template, issuer):
             else:
                 v_align_css = 'align-items: center;'
 
-            h_align = el.get('align', 'left')
             if h_align == 'center':
                 h_align_css = 'justify-content: center; text-align: center;'
             elif h_align == 'right':
@@ -287,14 +331,14 @@ def _generate_visual_pdf(certificate, template, issuer):
                 for placeholder, value in dynamic_data.items():
                     if placeholder.lower() in text.lower():
                         if placeholder.lower() == '{{signature}}' and signature_image_base64:
-                            sig_inline = f'<img src="data:image/png;base64,{signature_image_base64}" style="max-height: {max(32, int(el.get("height", 40)))}px; width: auto; object-fit: contain; vertical-align: middle; display: inline-block;" alt="Signature" />'
+                            sig_inline = f'<img src="data:image/png;base64,{signature_image_base64}" style="max-height: {max(32, int(el_h))}px; width: auto; object-fit: contain; vertical-align: middle; display: inline-block;" alt="Signature" />'
                             pattern = re.compile(re.escape(placeholder), re.IGNORECASE)
                             text = pattern.sub(lambda m, v=sig_inline: str(v), text)
                         else:
                             pattern = re.compile(re.escape(placeholder), re.IGNORECASE)
                             text = pattern.sub(lambda m, v=value: str(v), text)
 
-                font_style_val = el.get("fontStyle", "normal")
+                font_style_val = str(ovr.get("fontStyle") or el.get("fontStyle", "normal"))
                 font_weight = "bold" if "bold" in font_style_val else "normal"
                 font_style = "italic" if "italic" in font_style_val else "normal"
                 text_decor = el.get("textDecoration", "")
@@ -306,20 +350,65 @@ def _generate_visual_pdf(certificate, template, issuer):
                 elif "line-through" in text_decor:
                     decor_css = "text-decoration: line-through;"
 
-                letter_spacing = el.get('letterSpacing', 0)
-                line_height = el.get('lineHeight', 1.2)
+                letter_spacing = float(el.get('letterSpacing', 0) or 0)
+                line_height = float(el.get('lineHeight', 1.2) or 1.2)
+
+                has_manual_font_size = ovr.get("fontSize") is not None and str(ovr.get("fontSize")).strip() != ""
+                try:
+                    base_font_size = float(ovr.get("fontSize") if has_manual_font_size else (el.get("fontSize", 16) or 16))
+                except (ValueError, TypeError):
+                    base_font_size = float(el.get("fontSize", 16) or 16)
+                    has_manual_font_size = False
+
+                font_size = base_font_size
+                plain_text = re.sub(r'<[^>]+>', '', text).splitlines()
+                lines = plain_text if plain_text else ['']
+                max_line_chars = max((len(line) for line in lines), default=1)
+                is_dynamic_el = (el_type == 'placeholder') or ('{{' in raw_text)
+                is_single_line_box = (
+                    is_dynamic_el
+                    and len(lines) <= 1
+                    and el_h < (float(el.get("fontSize", 16) or 16) * 2.2)
+                    and ovr.get('wrap') is not True
+                )
+
+                # Deterministic auto-fit so long names/values never unexpectedly wrap or overflow placeholder boxes
+                if is_dynamic_el and auto_fit_enabled and not has_manual_font_size and max_line_chars > 0:
+                    flat_plain = " ".join(lines)
+                    upper_ratio = sum(1 for c in flat_plain if c.isupper()) / max(len(flat_plain), 1)
+                    char_factor = 0.64 if upper_ratio > 0.6 else (0.59 if font_weight == "bold" else 0.54)
+                    est_line_width = max_line_chars * (base_font_size * char_factor + letter_spacing)
+                    if is_single_line_box:
+                        if est_line_width > el_w * 0.95:
+                            avail_w = max(40.0, el_w * 0.95 - max_line_chars * letter_spacing)
+                            fitted = avail_w / max(max_line_chars * char_factor, 1.0)
+                            font_size = max(9.0, round(min(base_font_size, fitted), 1))
+                    else:
+                        est_lines = max(1, math.ceil(est_line_width / max(el_w * 0.92, 1.0))) * max(len(lines), 1)
+                        if est_lines * base_font_size * line_height > el_h * 0.96:
+                            fitted = (el_h * 0.96) / max(est_lines * line_height, 1.0)
+                            font_size = max(9.0, round(min(base_font_size, fitted), 1))
+
+                font_family_val = ovr.get("fontFamily") or el.get("fontFamily", "sans-serif") or "sans-serif"
+                if "," not in font_family_val and not font_family_val.startswith("'") and not font_family_val.startswith('"'):
+                    font_family_css = f"'{font_family_val}', sans-serif"
+                else:
+                    font_family_css = font_family_val
+
+                fill_color = ovr.get("color") or ovr.get("fill") or el.get("fill", "#000")
+                wrap_css = "white-space: nowrap;" if is_single_line_box else "word-wrap: break-word; overflow-wrap: break-word;"
 
                 style += (
-                    f'font-family: {el.get("fontFamily", "sans-serif")}; '
-                    f'font-size: {el.get("fontSize", 16)}px; '
-                    f'color: {el.get("fill", "#000")}; '
+                    f'font-family: {font_family_css}; '
+                    f'font-size: {font_size}px; '
+                    f'color: {fill_color}; '
                     f'font-style: {font_style}; '
                     f'font-weight: {font_weight}; '
                     f'letter-spacing: {letter_spacing}px; '
                     f'line-height: {line_height}; '
                     f'opacity: {opacity}; '
                     f'{decor_css} '
-                    f'word-wrap: break-word; display: flex; '
+                    f'{wrap_css} display: flex; '
                     f'{v_align_css} {h_align_css} '
                 )
                     
@@ -452,6 +541,11 @@ def _generate_visual_pdf(certificate, template, issuer):
         fn = el.get('fontFamily')
         if fn and fn.strip().lower() not in STANDARD_FONTS:
             used_fonts.add(fn.strip())
+    for ovr_dict in list(field_style_overrides.values()) + list(element_style_overrides.values()):
+        if isinstance(ovr_dict, dict):
+            fn = ovr_dict.get('fontFamily')
+            if fn and str(fn).strip().lower() not in STANDARD_FONTS:
+                used_fonts.add(str(fn).strip())
 
     font_links = []
     google_families = [f"family={f.replace(' ', '+')}:wght@400;700" for f in sorted(used_fonts) if f.lower() != 'product sans']
@@ -529,7 +623,10 @@ def _generate_html_pdf(certificate, template, issuer):
         signature_image_base64 = get_image_as_base64(sig_url)
 
     amount = extra.get('amount')
-    display_extra = {k: v for k, v in extra.items() if k not in ('use_uploaded_signature',)}
+    display_extra = {k: v for k, v in extra.items() if k not in ('use_uploaded_signature', 'cert_styles')}
+    cert_styles = extra.get('cert_styles') if isinstance(extra.get('cert_styles'), dict) else {}
+    auto_fit_enabled = cert_styles.get('autoFit', True) is not False
+    field_style_overrides = cert_styles.get('fields') if isinstance(cert_styles.get('fields'), dict) else {}
     
     # If no amount in extra_fields, try parsing from course title if it looks like currency
     if not amount and certificate.course_title:
@@ -628,26 +725,67 @@ def _generate_html_pdf(certificate, template, issuer):
     
     try:
         html_content = render_template(template_file, **context)
-        
+
+        # Build per-certificate style overrides & auto-fit rules for preset HTML templates
+        override_css_rules = []
+        rec_ovr = field_style_overrides.get('recipient_name') if isinstance(field_style_overrides.get('recipient_name'), dict) else {}
+        rec_name_str = str(context.get('recipient_name') or '')
+        if auto_fit_enabled and not rec_ovr.get('fontSize') and len(rec_name_str) > 22:
+            fitted_rec_size = max(20.0, round(42.0 * (22.0 / len(rec_name_str)), 1))
+            override_css_rules.append(f"h2, .recipient {{ font-size: {fitted_rec_size}px !important; white-space: nowrap !important; }}")
+
+        selector_map = {
+            'recipient_name': 'h2, .recipient',
+            'course_title': '.course, .course-title, p strong, p > span',
+            'title': 'h1, .title',
+            'signature': '.font-signature, .sig-text, .footer-bold',
+            'issuer_name': '.issuer-name',
+            'issue_date': '.date-line',
+        }
+        for f_key, css_sel in selector_map.items():
+            f_ovr = field_style_overrides.get(f_key)
+            if not isinstance(f_ovr, dict):
+                continue
+            props = []
+            if f_ovr.get('fontSize'):
+                props.append(f"font-size: {float(f_ovr['fontSize'])}px !important;")
+                if f_key == 'recipient_name' and f_ovr.get('wrap') is not True:
+                    props.append("white-space: nowrap !important;")
+            if f_ovr.get('fontFamily'):
+                ff = str(f_ovr['fontFamily']).strip()
+                props.append(f"font-family: '{ff}', sans-serif !important;")
+            if f_ovr.get('color') or f_ovr.get('fill'):
+                clr = f_ovr.get('color') or f_ovr.get('fill')
+                props.append(f"color: {clr} !important;")
+            ox = float(f_ovr.get('offsetX') or 0)
+            oy = float(f_ovr.get('offsetY') or 0)
+            if ox != 0 or oy != 0:
+                props.append(f"transform: translate({ox}px, {oy}px) !important;")
+            if props:
+                override_css_rules.append(f"{css_sel} {{ {' '.join(props)} }}")
+
+        extra_override_css = "\n            ".join(override_css_rules)
+
         # Inject Google Fonts & Product Sans font-face definition globally
-        font_inject = """
+        font_inject = f"""
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Great+Vibes&family=JetBrains+Mono:wght@400;700&family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,400&family=Montserrat:wght@300;400;600;700;800;900&family=Open+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Roboto:wght@300;400;500;700;900&display=swap">
         <style>
-            @font-face {
+            @font-face {{
               font-family: 'Product Sans';
               font-style: normal;
               font-weight: 400;
               src: url(https://fonts.gstatic.com/s/productsans/v5/HYvgU2fE2nRJvZ5JFAumwegdm0LZxxJZkbJ7NDDPsr0.woff2) format('woff2');
-            }
-            @font-face {
+            }}
+            @font-face {{
               font-family: 'Product Sans';
               font-style: normal;
               font-weight: 750;
               src: url(https://fonts.gstatic.com/s/productsans/v5/ea8acIL1mXDmi1A-4C2hnT9-pQURs1S4Uo3Al709Yuw.woff2) format('woff2');
-            }
-            .font-script, .font-signature {
+            }}
+            .font-script, .font-signature {{
               font-family: 'Great Vibes', cursive, serif;
-            }
+            }}
+            {extra_override_css}
         </style>
         """
         if "</head>" in html_content:

@@ -592,7 +592,32 @@ def update_certificate(cert_id):
     if 'template_id' in data: cert.template_id = data['template_id']
     
     db.session.commit()
-    return jsonify({"msg": "Updated successfully"}), 200
+
+    email_sent = False
+    if data.get('resend_email') and cert.recipient_email:
+        try:
+            template = Template.query.get(cert.template_id)
+            issuer = User.query.get(cert.user_id) or user
+            pdf_buffer = generate_certificate_pdf(cert, template, issuer)
+            png_buffer = None
+            if is_enterprise_context(user):
+                try:
+                    png_buffer = generate_certificate_png(cert, template, issuer)
+                except Exception as pe:
+                    current_app.logger.error(f"PNG generation for email skipped: {pe}")
+            cert.template = template
+            msg = create_certificate_email(cert, pdf_buffer, png_buffer)
+            mail.send(msg)
+            cert.sent_at = datetime.utcnow()
+            db.session.commit()
+            email_sent = True
+        except Exception as e:
+            current_app.logger.error(f"Email error on update for cert {cert.id}: {e}")
+
+    return jsonify({
+        "msg": "Updated and emailed successfully" if email_sent else "Updated successfully",
+        "email_sent": email_sent
+    }), 200
 
 
 @certificate_bp.route('/bulk', methods=['POST'])
@@ -768,9 +793,14 @@ def send_certificate_email_route(cert_id):
     """
     user_id = int(get_jwt_identity())
     certificate = _get_certificate(cert_id)
-    
-    if certificate.user_id != user_id: 
-        return jsonify({"msg": "Permission denied"}), 403
+    user = User.query.get(user_id)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        if certificate.tenant_id != tenant_id:
+            return jsonify({"msg": "Permission denied"}), 403
+    else:
+        if certificate.user_id != user_id or certificate.tenant_id is not None:
+            return jsonify({"msg": "Permission denied"}), 403
     if not certificate.recipient_email: 
         return jsonify({"msg": "No email address found for this recipient."}), 400
     
@@ -983,8 +1013,14 @@ def update_certificate_status(cert_id):
     """
     user_id = int(get_jwt_identity())
     certificate = _get_certificate(cert_id)
-    if certificate.user_id != user_id:
-        return jsonify({"msg": "Permission denied"}), 403
+    user = User.query.get(user_id)
+    is_comp, tenant_id, _, _ = get_active_context(user)
+    if is_comp:
+        if certificate.tenant_id != tenant_id:
+            return jsonify({"msg": "Permission denied"}), 403
+    else:
+        if certificate.user_id != user_id or certificate.tenant_id is not None:
+            return jsonify({"msg": "Permission denied"}), 403
 
     data = request.get_json()
     status = data.get('status')
