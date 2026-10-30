@@ -700,11 +700,33 @@ def bulk_create_certificates():
         db.session.commit()
         
         from ..tasks.bulk_tasks import process_bulk_upload_task
-        task = process_bulk_upload_task.delay(
-            job.id, file_content_b64, filename, template.id, group_id, user.id, is_comp, company_id, column_mapping, batch_defaults
-        )
-        
-        job.celery_task_id = task.id
+        import os
+        if os.environ.get('PROOFDECK_DESKTOP') == '1':
+            import threading
+            app_obj = current_app._get_current_object()
+            def _run_local_bulk():
+                with app_obj.app_context():
+                    process_bulk_upload_task(
+                        job.id, file_content_b64, filename, template.id, group_id, user.id, is_comp, company_id, column_mapping, batch_defaults
+                    )
+            threading.Thread(target=_run_local_bulk, daemon=True).start()
+            job.celery_task_id = f"desktop-{job.id}"
+        else:
+            try:
+                task = process_bulk_upload_task.delay(
+                    job.id, file_content_b64, filename, template.id, group_id, user.id, is_comp, company_id, column_mapping, batch_defaults
+                )
+                job.celery_task_id = task.id
+            except Exception:
+                import threading
+                app_obj = current_app._get_current_object()
+                def _run_fallback_bulk():
+                    with app_obj.app_context():
+                        process_bulk_upload_task(
+                            job.id, file_content_b64, filename, template.id, group_id, user.id, is_comp, company_id, column_mapping, batch_defaults
+                        )
+                threading.Thread(target=_run_fallback_bulk, daemon=True).start()
+                job.celery_task_id = f"local-{job.id}"
 
         from ..models import Notification
         start_notif = Notification(

@@ -425,3 +425,87 @@ class BlogPost(db.Model):
         if include_content:
             data["content"] = self.content
         return data
+
+
+class EnterpriseLicense(db.Model):
+    __tablename__ = 'enterprise_licenses'
+    id = db.Column(db.Integer, primary_key=True)
+    license_key = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    institution_name = db.Column(db.String(200), nullable=False)
+    contact_person = db.Column(db.String(120), nullable=True)
+    contact_email = db.Column(db.String(120), nullable=True)
+    contact_phone = db.Column(db.String(50), nullable=True)
+    
+    plan_tier = db.Column(db.String(50), default='enterprise_academic', nullable=False)
+    max_workstations = db.Column(db.Integer, default=5, nullable=False)
+    
+    # Modules enabled
+    enable_sis_connector = db.Column(db.Boolean, default=True, nullable=False)
+    enable_custom_qr = db.Column(db.Boolean, default=True, nullable=False)
+    enable_bulk_documents = db.Column(db.Boolean, default=True, nullable=False)
+    
+    # Status & Dates
+    status = db.Column(db.Enum('active', 'suspended', 'expired', 'revoked', name='license_statuses'), default='active', nullable=False)
+    issued_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    last_verified_at = db.Column(db.DateTime, nullable=True)
+    
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    activations = db.relationship('LicenseActivation', backref='license', cascade="all, delete-orphan", lazy=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "license_key": self.license_key,
+            "institution_name": self.institution_name,
+            "contact_person": self.contact_person,
+            "contact_email": self.contact_email,
+            "contact_phone": self.contact_phone,
+            "plan_tier": self.plan_tier,
+            "max_workstations": self.max_workstations,
+            "active_workstations_count": len([a for a in self.activations if a.status == 'active']),
+            "enable_sis_connector": self.enable_sis_connector,
+            "enable_custom_qr": self.enable_custom_qr,
+            "enable_bulk_documents": self.enable_bulk_documents,
+            "status": self.status,
+            "is_expired": datetime.utcnow() > self.expires_at if self.expires_at else False,
+            "issued_at": self.issued_at.isoformat() if self.issued_at else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "last_verified_at": self.last_verified_at.isoformat() if self.last_verified_at else None,
+            "notes": self.notes,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class LicenseActivation(db.Model):
+    __tablename__ = 'license_activations'
+    id = db.Column(db.Integer, primary_key=True)
+    license_id = db.Column(db.Integer, db.ForeignKey('enterprise_licenses.id', ondelete='CASCADE'), nullable=False)
+    machine_id = db.Column(db.String(128), nullable=False)
+    machine_name = db.Column(db.String(150), nullable=True)
+    operating_system = db.Column(db.String(100), nullable=True)
+    app_version = db.Column(db.String(30), default='1.0.0', nullable=False)
+    
+    status = db.Column(db.String(30), default='active', nullable=False)
+    activated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_ping_at = db.Column(db.DateTime, default=datetime.utcnow)
+    ip_address = db.Column(db.String(64), nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "license_id": self.license_id,
+            "machine_id": self.machine_id,
+            "machine_name": self.machine_name,
+            "operating_system": self.operating_system,
+            "app_version": self.app_version,
+            "status": self.status,
+            "activated_at": self.activated_at.isoformat() if self.activated_at else None,
+            "last_ping_at": self.last_ping_at.isoformat() if self.last_ping_at else None,
+            "ip_address": self.ip_address
+        }
+

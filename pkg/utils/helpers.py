@@ -148,9 +148,11 @@ def normalize_headers(df, custom_mapping=None, batch_defaults=None):
 def get_active_context(user):
     """
     Returns (is_tenant_mode, tenant_id, quota_holder, active_role) based on the X-Workspace-Context header.
+    Enterprise accounts are automatically Business/Organization accounts.
     """
+    import os
     from flask import request
-    from ..models import Tenant, Membership
+    from ..models import db, Tenant, Membership, Template, Group, Certificate
     ws = request.headers.get('X-Workspace-Context', 'personal')
     
     try:
@@ -164,7 +166,39 @@ def get_active_context(user):
             active_tenant = Tenant.query.get(tenant_id)
             if active_tenant:
                 return True, tenant_id, active_tenant, membership.role
-            
+
+    # Enterprise accounts (and Enterprise Desktop mode) are automatically Business/Company accounts
+    is_ent_user = str(getattr(user, 'role', '')).lower() == 'enterprise' or os.environ.get('PROOFDECK_DESKTOP') == '1'
+    if is_ent_user and user:
+        owner_membership = Membership.query.filter_by(user_id=user.id, role='owner', status='active').first()
+        if not owner_membership:
+            owner_membership = Membership.query.filter_by(user_id=user.id, status='active').first()
+        if not owner_membership:
+            # Auto-provision a Company Tenant for this Enterprise account
+            owned_tenant = Tenant.query.filter_by(owner_id=user.id).first()
+            if not owned_tenant:
+                owned_tenant = Tenant(
+                    name=user.name or "Enterprise Organization",
+                    owner_id=user.id,
+                    cert_quota=max(user.cert_quota or 0, 1000)
+                )
+                db.session.add(owned_tenant)
+                db.session.commit()
+            owner_membership = Membership(
+                user_id=user.id,
+                tenant_id=owned_tenant.id,
+                role='owner',
+                status='active'
+            )
+            db.session.add(owner_membership)
+            Template.query.filter_by(user_id=user.id, tenant_id=None).update({"tenant_id": owned_tenant.id})
+            Group.query.filter_by(user_id=user.id, tenant_id=None).update({"tenant_id": owned_tenant.id})
+            Certificate.query.filter_by(user_id=user.id, tenant_id=None).update({"tenant_id": owned_tenant.id})
+            db.session.commit()
+
+        if owner_membership and owner_membership.tenant:
+            return True, owner_membership.tenant_id, owner_membership.tenant, owner_membership.role
+
     return False, None, user, None
 
 def is_enterprise_context(user):
@@ -217,6 +251,20 @@ def get_certificate_verification_url(certificate_or_id):
 
     if tenant and getattr(tenant, 'custom_domain', None) and getattr(tenant, 'domain_status', None) == 'active':
         return f"https://{tenant.custom_domain}/verify/{verification_id}"
+
+    import os
+    if os.environ.get('PROOFDECK_DESKTOP') == '1':
+        try:
+            from ..routes.desktop import load_desktop_config
+            d_cfg = load_desktop_config()
+            v_mode = d_cfg.get('verification_mode', 'university_portal')
+            if v_mode == 'no_qr':
+                return ""
+            if v_mode == 'university_portal' and d_cfg.get('custom_verification_url'):
+                base_u = d_cfg['custom_verification_url'].rstrip('/')
+                return f"{base_u}/{verification_id}"
+        except Exception:
+            pass
 
     frontend_url = current_app.config.get('FRONTEND_URL', 'https://www.proofdeck.app').rstrip('/')
     return f"{frontend_url}/verify/{verification_id}"

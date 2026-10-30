@@ -29,6 +29,8 @@ from .admin_messaging import admin_messaging_bp
 from .admin_team import admin_team_bp
 from .admin_system import admin_system_bp
 from .admin_broadcasts import admin_broadcasts_bp
+from .admin_licenses import admin_licenses_bp
+from .licenses_api import licenses_api_bp
 from .email_routes import email_routes_bp
 from .blog import blog_bp
 from .admin_blog import admin_blog_bp
@@ -56,8 +58,10 @@ def register_blueprints(app):
     
     from .notifications import notifications_bp
     from .jobs import jobs_bp
+    from .desktop import desktop_bp
     app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
     app.register_blueprint(jobs_bp, url_prefix='/api/jobs')
+    app.register_blueprint(desktop_bp, url_prefix='/api/desktop')
     app.register_blueprint(blog_bp, url_prefix='/api/blog')
     
     # All admin blueprints are grouped under a single, consistent prefix.
@@ -73,6 +77,8 @@ def register_blueprints(app):
     app.register_blueprint(admin_broadcasts_bp, url_prefix='/api/admin')
     app.register_blueprint(admin_team_bp, url_prefix='/api/admin')
     app.register_blueprint(admin_system_bp, url_prefix='/api/admin')
+    app.register_blueprint(admin_licenses_bp, url_prefix='/api/admin')
+    app.register_blueprint(licenses_api_bp, url_prefix='/api/licenses')
 
     #Standalones
     app.register_blueprint(uploads_bp, url_prefix='/api/uploads')

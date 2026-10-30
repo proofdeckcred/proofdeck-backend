@@ -289,10 +289,21 @@ def bulk_update_group_certificates(group_id):
             )
             db.session.add(job)
             db.session.commit()
-            task = process_bulk_email_task.delay(
-                job.id, group.id, user.id, is_comp, tenant_id, True
-            )
-            job.celery_task_id = task.id
+            try:
+                if os.environ.get('PROOFDECK_DESKTOP') == '1':
+                    raise RuntimeError("Use local thread in desktop mode")
+                task = process_bulk_email_task.delay(
+                    job.id, group.id, user.id, is_comp, tenant_id, True
+                )
+                job.celery_task_id = task.id
+            except Exception:
+                import threading
+                app_obj = current_app._get_current_object()
+                def _run_local_email():
+                    with app_obj.app_context():
+                        process_bulk_email_task(job.id, group.id, user.id, is_comp, tenant_id, True)
+                threading.Thread(target=_run_local_email, daemon=True).start()
+                job.celery_task_id = f"desktop-email-{job.id}"
             start_notif = Notification(
                 user_id=user.id,
                 title="Batch updated & email dispatch started",
