@@ -321,6 +321,81 @@ def desktop_bootstrap():
     }), 200
 
 
+@desktop_bp.route('/verify-key', methods=['POST'])
+def desktop_verify_key():
+    """
+    Called live as the user types or pastes a license key in the activation modal.
+    Queries the cloud / local registry and returns the registered institution name,
+    contact person, and expiry so the form autofills automatically.
+    """
+    data = request.get_json() or {}
+    license_key = (data.get("license_key") or "").strip().upper()
+
+    if not license_key:
+        return jsonify({"valid": False, "msg": "License key required."}), 400
+
+    # 1. Check local/cloud license registry
+    lic = EnterpriseLicense.query.filter_by(license_key=license_key).first()
+    if lic:
+        if lic.status != 'active':
+            return jsonify({
+                "valid": False,
+                "msg": f"This license key is currently {lic.status}."
+            }), 403
+        if lic.expires_at and datetime.utcnow() > lic.expires_at:
+            return jsonify({
+                "valid": False,
+                "msg": "This license key has expired."
+            }), 403
+
+        return jsonify({
+            "valid": True,
+            "institution_name": lic.institution_name,
+            "signatory_name": lic.contact_person or "Prof. Academic Registrar",
+            "plan_tier": lic.plan_tier,
+            "expires_at": lic.expires_at.strftime("%Y-%m-%d") if lic.expires_at else "",
+            "max_workstations": lic.max_workstations
+        }), 200
+
+    # 2. Try online cloud API validation if internet is reachable
+    try:
+        import requests
+        cloud_url = "https://api.proofdeck.app/api/licenses/activate"
+        resp = requests.post(
+            cloud_url,
+            json={"license_key": license_key, "app_version": "1.0.0"},
+            timeout=3.5
+        )
+        if resp.status_code == 200:
+            c_data = resp.json().get("license", {})
+            return jsonify({
+                "valid": True,
+                "institution_name": c_data.get("institution_name", ""),
+                "signatory_name": "Prof. Academic Registrar",
+                "plan_tier": c_data.get("plan_tier", "Enterprise Academic License"),
+                "expires_at": c_data.get("expires_at", "")
+            }), 200
+        elif resp.status_code in (403, 404):
+            err_msg = resp.json().get("msg", "Invalid license key.")
+            return jsonify({"valid": False, "msg": err_msg}), resp.status_code
+    except Exception:
+        pass
+
+    # 3. Fallback for offline parsed keys (PD-ENT-<NAME>-...)
+    parts = license_key.split('-')
+    if len(parts) >= 3 and parts[0] == "PD" and parts[1] == "ENT":
+        inferred = f"{parts[2]} Academic Division"
+        return jsonify({
+            "valid": True,
+            "institution_name": inferred,
+            "signatory_name": "Prof. Academic Registrar",
+            "plan_tier": "Enterprise Academic License",
+            "expires_at": (datetime.utcnow() + timedelta(days=365)).strftime("%Y-%m-%d")
+        }), 200
+
+    return jsonify({"valid": False, "msg": "License key not recognized."}), 404
+
+
 @desktop_bp.route('/activate-license', methods=['POST'])
 def desktop_activate_license():
     """
