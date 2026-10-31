@@ -81,18 +81,26 @@ def create_custom_template():
     user_id = int(get_jwt_identity())
     user = User.query.get_or_404(user_id)
     
-    if 'title' not in request.form or not request.form.get('title').strip():
-        return jsonify({"msg": "Missing template title."}), 400
-    if 'layout_data' not in request.form:
-        return jsonify({"msg": "Missing template layout data."}), 400
+    if request.is_json:
+        data = request.get_json() or {}
+        title = data.get('title', '').strip()
+        layout_style = data.get('layout_style', 'visual')
+        layout_data = data.get('canvas_data') or data.get('layout_data') or {}
+        if not title:
+            return jsonify({"msg": "Missing template title."}), 400
+    else:
+        if 'title' not in request.form or not request.form.get('title').strip():
+            return jsonify({"msg": "Missing template title."}), 400
+        if 'layout_data' not in request.form:
+            return jsonify({"msg": "Missing template layout data."}), 400
 
-    title = request.form.get('title')
-    layout_data_str = request.form.get('layout_data')
-    
-    try:
-        layout_data = json.loads(layout_data_str)
-    except json.JSONDecodeError:
-        return jsonify({"msg": "Invalid layout data format."}), 400
+        title = request.form.get('title')
+        layout_style = request.form.get('layout_style', 'visual')
+        layout_data_str = request.form.get('layout_data')
+        try:
+            layout_data = json.loads(layout_data_str)
+        except json.JSONDecodeError:
+            return jsonify({"msg": "Invalid layout data format."}), 400
 
     layout_data = extract_and_save_base64_images(layout_data, user_id)
 
@@ -127,7 +135,7 @@ def create_custom_template():
         tenant_id=tenant_id if is_comp else None,
         title=title,
         background_url=background_url,
-        layout_style=request.form.get('layout_style', 'visual'),
+        layout_style=layout_style,
         layout_data=layout_data,
         is_public=False
     )
@@ -153,6 +161,20 @@ def update_custom_template(template_id):
     else:
         if template.user_id != user_id or template.tenant_id is not None:
             return jsonify({"msg": "Permission denied"}), 403
+
+    if request.is_json:
+        data = request.get_json() or {}
+        title = data.get('title', '').strip()
+        if title:
+            template.title = title
+        if 'layout_style' in data:
+            template.layout_style = data['layout_style']
+        layout_data = data.get('canvas_data') or data.get('layout_data') or {}
+        if layout_data:
+            template.layout_data = layout_data
+            flag_modified(template, "layout_data")
+        db.session.commit()
+        return jsonify({"msg": "Template updated successfully"}), 200
 
     title = request.form.get('title', '').strip()
     if title:
@@ -265,9 +287,15 @@ def get_user_templates():
         )
 
     if type_filter == 'document':
-        query = query.filter(Template.layout_style == 'document')
+        query = query.filter(
+            (Template.layout_style == 'document') | 
+            (Template.title.ilike('%statement of result%'))
+        )
     elif type_filter == 'certificate':
-        query = query.filter(Template.layout_style != 'document')
+        query = query.filter(
+            Template.layout_style != 'document',
+            ~Template.title.ilike('%statement of result%')
+        )
 
     templates = query.order_by(Template.is_public.asc(), Template.created_at.desc()).all()
 
@@ -279,7 +307,7 @@ def get_user_templates():
             except Exception: pass
         templates_data.append({
             'id': t.id,
-            'title': t.title,
+            'title': (t.title or '').replace('(Senate Approved)', '').strip(),
             'logo_url': t.logo_url,
             'background_url': t.background_url,
             'primary_color': t.primary_color,
