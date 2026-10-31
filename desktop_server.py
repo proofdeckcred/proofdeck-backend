@@ -111,16 +111,40 @@ def _wait_for_port(host, port, timeout=15.0):
 
 
 def launch_desktop_window(url):
-    if not _wait_for_port("127.0.0.1", 5000, timeout=15.0):
-        return
+    print(f"[ProofDeck Desktop] Waiting for engine on port 5000...")
+    _wait_for_port("127.0.0.1", 5000, timeout=12.0)
 
+    print(f"[ProofDeck Desktop] Opening window: {url}")
     browser_exe = _find_native_app_browser()
-    profile_dir = os.path.join(INSTANCE_DIR, "desktop_window_profile")
-    os.makedirs(profile_dir, exist_ok=True)
 
     if browser_exe:
+        # 1. First attempt: Edge/Chrome native app mode without locking profile
         try:
-            subprocess.Popen([
+            proc = subprocess.Popen([
+                browser_exe,
+                f"--app={url}",
+                "--window-size=1440,900",
+                "--disable-features=TranslateUI",
+                "--no-first-run",
+                "--no-default-browser-check",
+            ])
+            time.sleep(1.0)
+            if proc.poll() is None or proc.returncode == 0:
+                print("[ProofDeck Desktop] Native app window launched successfully.")
+                return
+        except Exception as e:
+            print(f"[ProofDeck Desktop] App mode direct launch: {e}")
+
+        # 2. Second attempt: dedicated profile (with stale lock cleanup)
+        try:
+            profile_dir = os.path.join(INSTANCE_DIR, "desktop_window_profile")
+            lockfile_path = os.path.join(profile_dir, "lockfile")
+            if os.path.exists(lockfile_path):
+                try:
+                    os.remove(lockfile_path)
+                except Exception:
+                    pass
+            proc = subprocess.Popen([
                 browser_exe,
                 f"--app={url}",
                 f"--user-data-dir={profile_dir}",
@@ -129,19 +153,33 @@ def launch_desktop_window(url):
                 "--no-first-run",
                 "--no-default-browser-check",
             ])
-            return
+            time.sleep(1.0)
+            if proc.poll() is None or proc.returncode == 0:
+                print("[ProofDeck Desktop] Dedicated profile app window launched.")
+                return
         except Exception as e:
-            print(f"[ProofDeck Desktop] Fallback to default browser: {e}")
+            print(f"[ProofDeck Desktop] Profile app mode: {e}")
 
-    import webbrowser
-    webbrowser.open(url)
+    # 3. Reliable Fallback: Windows default browser
+    try:
+        os.system(f'start "" "{url}"')
+        print("[ProofDeck Desktop] Opened in default web browser.")
+    except Exception:
+        import webbrowser
+        webbrowser.open(url)
+        print("[ProofDeck Desktop] Opened via webbrowser.")
+
+
+def _is_port_in_use(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("127.0.0.1", port)) == 0
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     no_window = "--no-window" in sys.argv
 
-    # Determine target URL (if frontend/dist exists, use 127.0.0.1:5000; if dev server on 5173 is used, support that too)
+    # Determine target URL
     target_url = os.environ.get("DESKTOP_START_URL") or f"http://127.0.0.1:{port}/dashboard?desktop=1"
 
     print("=================================================================")
@@ -149,6 +187,13 @@ if __name__ == "__main__":
     print(f"  Local Database : {DEFAULT_SQLITE_PATH}")
     print(f"  Desktop Engine : http://127.0.0.1:{port}")
     print("=================================================================")
+
+    if _is_port_in_use(port):
+        print(f"[ProofDeck Desktop] Engine is already active on port {port}.")
+        if not no_window:
+            launch_desktop_window(target_url)
+        print("[ProofDeck Desktop] Ready. You can close this window when done.")
+        sys.exit(0)
 
     desktop_app = create_desktop_app()
 
