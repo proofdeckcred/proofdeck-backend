@@ -9,7 +9,7 @@ from ..models import db, Admin, EnterpriseLicense, LicenseActivation, AdminActio
 admin_licenses_bp = Blueprint('admin_licenses', __name__)
 
 def _generate_license_key(institution_name):
-    # Generates a formatted key like PD-ENT-NILE-9F8A-7B2C-1E4D
+    # Generates a formatted key like PD-ENT-APEX-9F8A-7B2C-1E4D
     clean = re.sub(r'[^A-Za-z0-9]', '', institution_name.upper())[:4] or "UNIV"
     part1 = secrets.token_hex(2).upper()
     part2 = secrets.token_hex(2).upper()

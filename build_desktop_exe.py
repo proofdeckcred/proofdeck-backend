@@ -50,7 +50,7 @@ def main():
         mode,
         "--noconfirm",
         "--clean",
-        "--name=ProofDeckEnterprise",
+        "--name=ProofDeck-Enterprise-Setup-1.0.0",
         # Hide black console window for native desktop feel (use --console if specified)
         "--console" if "--console" in sys.argv else "--noconsole",
         f"--add-data={FRONTEND_DIST};frontend_dist",

@@ -52,26 +52,26 @@ def _ensure_demo_sis_populated(db_path):
             )
         """)
         sample_students = [
-            ("20220001", "Aisha Mohammed Bello", "aisha.bello@nileuniversity.edu.ng", "B.Sc. Software Engineering", "Software Engineering", "Computing Studies", "400", "4.82", "First Class Honours", "2026-10-30"),
-            ("20220002", "Chukwuemeka David Okafor", "c.okafor@nileuniversity.edu.ng", "B.Sc. Computer Science", "Computer Science", "Computing Studies", "400", "4.65", "First Class Honours", "2026-10-30"),
-            ("20220003", "Fatima Zahra Ibrahim", "fatima.ibrahim@nileuniversity.edu.ng", "B.Eng. Civil Engineering", "Civil Engineering", "Engineering", "500", "4.41", "Second Class Upper", "2026-10-30"),
-            ("20220004", "Oluwaseun Toluwalase Adeyemi", "seun.adeyemi@nileuniversity.edu.ng", "B.Sc. Economics", "Economics", "Management Sciences", "400", "4.55", "First Class Honours", "2026-10-30"),
-            ("20220005", "Musa Abdullahi Danjuma", "musa.danjuma@nileuniversity.edu.ng", "LL.B. Law", "Private & Islamic Law", "Law", "500", "4.18", "Second Class Upper", "2026-10-30"),
-            ("20220006", "Zainab Abubakar Sadiq", "zainab.sadiq@nileuniversity.edu.ng", "MBBS Medicine & Surgery", "Clinical Sciences", "College of Health Sciences", "600", "4.74", "Distinction", "2026-10-30"),
-            ("20220007", "Kelechi Somtochukwu Nwosu", "kelechi.nwosu@nileuniversity.edu.ng", "B.Sc. Cyber Security", "Cyber Security", "Computing Studies", "400", "4.38", "Second Class Upper", "2026-10-30"),
-            ("20220008", "Halima Suleiman Lawal", "halima.lawal@nileuniversity.edu.ng", "B.Sc. International Relations", "Political Science", "Arts & Social Sciences", "400", "4.60", "First Class Honours", "2026-10-30"),
-            ("20220009", "Babajide Ayomide Ogunleye", "b.ogunleye@nileuniversity.edu.ng", "B.Eng. Electrical & Electronics Engineering", "Electrical Engineering", "Engineering", "500", "3.92", "Second Class Upper", "2026-10-30"),
-            ("20220010", "Amina Yusuf Maitama", "amina.maitama@nileuniversity.edu.ng", "B.Sc. Business Administration", "Business Administration", "Management Sciences", "400", "4.29", "Second Class Upper", "2026-10-30"),
-            ("20220011", "Tosin Emmanuel Adebayo", "tosin.adebayo@nileuniversity.edu.ng", "B.Sc. Information Technology", "Information Technology", "Computing Studies", "400", "4.51", "First Class Honours", "2026-10-30"),
-            ("20220012", "Hauwa Kabir Usman", "hauwa.usman@nileuniversity.edu.ng", "B.Sc. Mass Communication", "Mass Communication", "Arts & Social Sciences", "400", "4.12", "Second Class Upper", "2026-10-30"),
-            ("20220013", "Ibrahim Khalil Garba", "ibrahim.garba@nileuniversity.edu.ng", "B.Eng. Petroleum & Gas Engineering", "Petroleum Engineering", "Engineering", "500", "4.68", "First Class Honours", "2026-10-30"),
-            ("20220014", "Chiamaka Blessing Eze", "chiamaka.eze@nileuniversity.edu.ng", "B.Sc. Accounting", "Accounting", "Management Sciences", "400", "4.79", "First Class Honours", "2026-10-30"),
-            ("20220015", "Sadiq Aliyu Mustapha", "sadiq.mustapha@nileuniversity.edu.ng", "B.Sc. Architecture", "Architecture", "Environmental Sciences", "400", "4.33", "Second Class Upper", "2026-10-30"),
-            ("20220016", "Khadija Bashir Tukur", "khadija.tukur@nileuniversity.edu.ng", "B.Sc. Biotechnology", "Biological Sciences", "Natural & Applied Sciences", "400", "4.47", "Second Class Upper", "2026-10-30"),
-            ("20220017", "Daniel Oritseweyinmi Amusan", "daniel.amusan@nileuniversity.edu.ng", "B.Sc. Software Engineering", "Software Engineering", "Computing Studies", "400", "4.91", "First Class Honours", "2026-10-30"),
-            ("20220018", "Maryam Shehu Yaradua", "maryam.shehu@nileuniversity.edu.ng", "B.Sc. Public Administration", "Public Administration", "Management Sciences", "400", "4.05", "Second Class Upper", "2026-10-30"),
-            ("20220019", "Farouk Umar Abdulkadir", "farouk.umar@nileuniversity.edu.ng", "B.Eng. Mechatronics Engineering", "Mechatronics Engineering", "Engineering", "500", "4.58", "First Class Honours", "2026-10-30"),
-            ("20220020", "Ngozi Valerie Obi", "ngozi.obi@nileuniversity.edu.ng", "B.Sc. Human Anatomy", "Basic Medical Sciences", "College of Health Sciences", "400", "4.22", "Second Class Upper", "2026-10-30"),
+            ("20220001", "Aisha Mohammed Bello", "aisha.bello@campus.edu", "B.Sc. Software Engineering", "Software Engineering", "Computing Studies", "400", "4.82", "First Class Honours", "2026-10-30"),
+            ("20220002", "Chukwuemeka David Okafor", "c.okafor@campus.edu", "B.Sc. Computer Science", "Computer Science", "Computing Studies", "400", "4.65", "First Class Honours", "2026-10-30"),
+            ("20220003", "Fatima Zahra Ibrahim", "fatima.ibrahim@campus.edu", "B.Eng. Civil Engineering", "Civil Engineering", "Engineering", "500", "4.41", "Second Class Upper", "2026-10-30"),
+            ("20220004", "Oluwaseun Toluwalase Adeyemi", "seun.adeyemi@campus.edu", "B.Sc. Economics", "Economics", "Management Sciences", "400", "4.55", "First Class Honours", "2026-10-30"),
+            ("20220005", "Musa Abdullahi Danjuma", "musa.danjuma@campus.edu", "LL.B. Law", "Private & Islamic Law", "Law", "500", "4.18", "Second Class Upper", "2026-10-30"),
+            ("20220006", "Zainab Abubakar Sadiq", "zainab.sadiq@campus.edu", "MBBS Medicine & Surgery", "Clinical Sciences", "College of Health Sciences", "600", "4.74", "Distinction", "2026-10-30"),
+            ("20220007", "Kelechi Somtochukwu Nwosu", "kelechi.nwosu@campus.edu", "B.Sc. Cyber Security", "Cyber Security", "Computing Studies", "400", "4.38", "Second Class Upper", "2026-10-30"),
+            ("20220008", "Halima Suleiman Lawal", "halima.lawal@campus.edu", "B.Sc. International Relations", "Political Science", "Arts & Social Sciences", "400", "4.60", "First Class Honours", "2026-10-30"),
+            ("20220009", "Babajide Ayomide Ogunleye", "b.ogunleye@campus.edu", "B.Eng. Electrical & Electronics Engineering", "Electrical Engineering", "Engineering", "500", "3.92", "Second Class Upper", "2026-10-30"),
+            ("20220010", "Amina Yusuf Maitama", "amina.maitama@campus.edu", "B.Sc. Business Administration", "Business Administration", "Management Sciences", "400", "4.29", "Second Class Upper", "2026-10-30"),
+            ("20220011", "Tosin Emmanuel Adebayo", "tosin.adebayo@campus.edu", "B.Sc. Information Technology", "Information Technology", "Computing Studies", "400", "4.51", "First Class Honours", "2026-10-30"),
+            ("20220012", "Hauwa Kabir Usman", "hauwa.usman@campus.edu", "B.Sc. Mass Communication", "Mass Communication", "Arts & Social Sciences", "400", "4.12", "Second Class Upper", "2026-10-30"),
+            ("20220013", "Ibrahim Khalil Garba", "ibrahim.garba@campus.edu", "B.Eng. Petroleum & Gas Engineering", "Petroleum Engineering", "Engineering", "500", "4.68", "First Class Honours", "2026-10-30"),
+            ("20220014", "Chiamaka Blessing Eze", "chiamaka.eze@campus.edu", "B.Sc. Accounting", "Accounting", "Management Sciences", "400", "4.79", "First Class Honours", "2026-10-30"),
+            ("20220015", "Sadiq Aliyu Mustapha", "sadiq.mustapha@campus.edu", "B.Sc. Architecture", "Architecture", "Environmental Sciences", "400", "4.33", "Second Class Upper", "2026-10-30"),
+            ("20220016", "Khadija Bashir Tukur", "khadija.tukur@campus.edu", "B.Sc. Biotechnology", "Biological Sciences", "Natural & Applied Sciences", "400", "4.47", "Second Class Upper", "2026-10-30"),
+            ("20220017", "Daniel Oritseweyinmi Amusan", "daniel.amusan@campus.edu", "B.Sc. Software Engineering", "Software Engineering", "Computing Studies", "400", "4.91", "First Class Honours", "2026-10-30"),
+            ("20220018", "Maryam Shehu Yaradua", "maryam.shehu@campus.edu", "B.Sc. Public Administration", "Public Administration", "Management Sciences", "400", "4.05", "Second Class Upper", "2026-10-30"),
+            ("20220019", "Farouk Umar Abdulkadir", "farouk.umar@campus.edu", "B.Eng. Mechatronics Engineering", "Mechatronics Engineering", "Engineering", "500", "4.58", "First Class Honours", "2026-10-30"),
+            ("20220020", "Ngozi Valerie Obi", "ngozi.obi@campus.edu", "B.Sc. Human Anatomy", "Basic Medical Sciences", "College of Health Sciences", "400", "4.22", "Second Class Upper", "2026-10-30"),
         ]
         cur.executemany("""
             INSERT OR IGNORE INTO student_records
@@ -150,7 +150,7 @@ def ensure_desktop_default_data():
     3. A default Group folder so the user can start issuing offline immediately.
     """
     cfg = load_desktop_config()
-    inst_name = cfg.get("institution_name") or "Nile University — Academic Division"
+    inst_name = cfg.get("institution_name") or "Apex Institute of Technology — Academic Division"
 
     user = User.query.filter_by(email="academic@desktop.local").first()
     if not user:
