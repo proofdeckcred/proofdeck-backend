@@ -127,7 +127,7 @@ def create_custom_template():
         tenant_id=tenant_id if is_comp else None,
         title=title,
         background_url=background_url,
-        layout_style='visual',
+        layout_style=request.form.get('layout_style', 'visual'),
         layout_data=layout_data,
         is_public=False
     )
@@ -143,7 +143,7 @@ def update_custom_template(template_id):
     template = Template.query.get_or_404(template_id)
     user = User.query.get(user_id)
 
-    if template.is_public or template.layout_style != 'visual':
+    if template.is_public or template.layout_style not in ['visual', 'document']:
         return jsonify({"msg": "Permission denied"}), 403
 
     is_comp, tenant_id, _, _ = get_active_context(user)
