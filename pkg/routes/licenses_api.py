@@ -83,9 +83,12 @@ def activate_workstation():
         "license": {
             "key": lic.license_key,
             "institution_name": lic.institution_name,
+            "contact_person": lic.contact_person or "",
+            "signatory_name": lic.contact_person or "Prof. Academic Registrar",
             "plan_tier": lic.plan_tier,
             "expires_at": lic.expires_at.strftime("%Y-%m-%d"),
             "status": lic.status,
+            "max_workstations": lic.max_workstations,
             "modules": {
                 "sis_connector": lic.enable_sis_connector,
                 "custom_qr": lic.enable_custom_qr,

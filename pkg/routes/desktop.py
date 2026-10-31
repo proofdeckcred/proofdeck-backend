@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from sqlalchemy import create_engine, text
-from ..models import db, User, Tenant, Membership, Template, Group, Certificate
+from ..models import db, User, Tenant, Membership, Template, Group, Certificate, EnterpriseLicense, LicenseActivation
 from ..services.pdf_service import generate_certificate_pdf, generate_certificate_png
 
 desktop_bp = Blueprint('desktop', __name__)
@@ -227,44 +227,43 @@ def ensure_desktop_default_data():
     Certificate.query.filter_by(user_id=user.id, tenant_id=None).update({"tenant_id": tenant.id})
     db.session.commit()
 
-    # Ensure built-in templates exist in local DB
-    if Template.query.count() == 0:
-        starter_templates = [
-            Template(
-                title="University Degree & Graduation Certificate",
-                layout_style="classic",
-                primary_color="#1e3a8a",
-                secondary_color="#b45309",
-                body_font_color="#1e293b",
-                font_family="Cinzel",
-                is_public=True,
-                user_id=user.id,
-                tenant_id=tenant.id
-            ),
-            Template(
-                title="Academic Excellence & Senate Honours",
-                layout_style="modern",
-                primary_color="#0f172a",
-                secondary_color="#0284c7",
-                body_font_color="#1e293b",
-                font_family="Playfair Display",
-                is_public=True,
-                user_id=user.id,
-                tenant_id=tenant.id
-            ),
-            Template(
-                title="Official Statement of Result / Attestation",
-                layout_style="minimal",
-                primary_color="#065f46",
-                secondary_color="#d97706",
-                body_font_color="#111827",
-                font_family="Merriweather",
-                is_public=True,
-                user_id=user.id,
-                tenant_id=tenant.id
-            ),
-        ]
-        db.session.add_all(starter_templates)
+    # Ensure the full suite of built-in templates exists in the local desktop library
+    all_starter_presets = [
+        {"title": "University Degree & Graduation Certificate", "style": "classic", "primary": "#1e3a8a", "secondary": "#b45309", "font": "Cinzel"},
+        {"title": "Academic Excellence & Senate Honours", "style": "modern", "primary": "#0f172a", "secondary": "#0284c7", "font": "Playfair Display"},
+        {"title": "Official Statement of Result / Attestation", "style": "minimal", "primary": "#065f46", "secondary": "#d97706", "font": "Merriweather"},
+        {"title": "Executive Diploma & Post-Graduate Award", "style": "diploma_classic", "primary": "#1e293b", "secondary": "#b45309", "font": "Cinzel"},
+        {"title": "Gold Senate Distinction Award", "style": "award_gold", "primary": "#78350f", "secondary": "#f59e0b", "font": "Cinzel"},
+        {"title": "Modern Academic Credential", "style": "modern_landscape", "primary": "#1e3a8a", "secondary": "#3b82f6", "font": "Inter"},
+        {"title": "Corporate Academic Fellowship", "style": "corporate_blue", "primary": "#0f172a", "secondary": "#2563eb", "font": "Playfair Display"},
+        {"title": "Elegant Serif Degree Certification", "style": "elegant_serif", "primary": "#1c1917", "secondary": "#78350f", "font": "Playfair Display"},
+        {"title": "Faculty of Technology Dark Credential", "style": "tech_dark", "primary": "#030712", "secondary": "#06b6d4", "font": "Inter"},
+        {"title": "Department of Arts & Creative Design", "style": "creative_art", "primary": "#4c1d95", "secondary": "#ec4899", "font": "Playfair Display"},
+        {"title": "Academic Badge & Verified Accreditation", "style": "badge_cert", "primary": "#1e3a8a", "secondary": "#d97706", "font": "Cinzel"},
+        {"title": "Star of Achievement & Senate Valedictorian", "style": "achievement_star", "primary": "#0f172a", "secondary": "#eab308", "font": "Cinzel"},
+        {"title": "Official Student Tuition & Academic Fee Receipt", "style": "receipt", "primary": "#1e293b", "secondary": "#64748b", "font": "Inter"},
+    ]
+
+    existing_titles = {t.title for t in Template.query.all()}
+    missing_templates = []
+    for p in all_starter_presets:
+        if p["title"] not in existing_titles:
+            missing_templates.append(
+                Template(
+                    title=p["title"],
+                    layout_style=p["style"],
+                    primary_color=p["primary"],
+                    secondary_color=p["secondary"],
+                    body_font_color="#1e293b",
+                    font_family=p["font"],
+                    is_public=True,
+                    user_id=user.id,
+                    tenant_id=tenant.id
+                )
+            )
+
+    if missing_templates:
+        db.session.add_all(missing_templates)
         db.session.commit()
 
     return user, tenant, cfg
@@ -371,7 +370,7 @@ def desktop_verify_key():
             return jsonify({
                 "valid": True,
                 "institution_name": c_data.get("institution_name", ""),
-                "signatory_name": "Prof. Academic Registrar",
+                "signatory_name": c_data.get("contact_person") or c_data.get("signatory_name") or "Prof. Academic Registrar",
                 "plan_tier": c_data.get("plan_tier", "Enterprise Academic License"),
                 "expires_at": c_data.get("expires_at", "")
             }), 200

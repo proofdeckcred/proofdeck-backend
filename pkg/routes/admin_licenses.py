@@ -164,3 +164,50 @@ def extend_license(license_id):
     db.session.commit()
 
     return jsonify({"msg": f"License extended until {lic.expires_at.strftime('%Y-%m-%d')}.", "license": lic.to_dict()}), 200
+
+@admin_licenses_bp.route('/licenses/<int:license_id>', methods=['PUT'])
+@jwt_required()
+def update_license(license_id):
+    if not isinstance(current_user, Admin):
+        return jsonify({"msg": "Admin access required"}), 403
+
+    lic = EnterpriseLicense.query.get_or_404(license_id)
+    data = request.get_json() or {}
+
+    if 'institution_name' in data and data['institution_name'].strip():
+        lic.institution_name = data['institution_name'].strip()
+    if 'contact_person' in data:
+        lic.contact_person = (data['contact_person'] or '').strip()
+    if 'contact_email' in data:
+        lic.contact_email = (data['contact_email'] or '').strip()
+    if 'contact_phone' in data:
+        lic.contact_phone = (data['contact_phone'] or '').strip()
+    if 'max_workstations' in data:
+        try:
+            lic.max_workstations = max(1, int(data['max_workstations']))
+        except (ValueError, TypeError):
+            pass
+    if 'plan_tier' in data:
+        lic.plan_tier = data['plan_tier']
+    if 'enable_sis_connector' in data:
+        lic.enable_sis_connector = bool(data['enable_sis_connector'])
+    if 'enable_custom_qr' in data:
+        lic.enable_custom_qr = bool(data['enable_custom_qr'])
+    if 'enable_bulk_documents' in data:
+        lic.enable_bulk_documents = bool(data['enable_bulk_documents'])
+    if 'notes' in data:
+        lic.notes = (data['notes'] or '').strip()
+
+    log = AdminActionLog(
+        admin_id=current_user.id,
+        action=f"Updated enterprise license {lic.license_key} details (seats: {lic.max_workstations})",
+        target_type="enterprise_license",
+        target_id=lic.id
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Enterprise license updated successfully.",
+        "license": lic.to_dict()
+    }), 200
