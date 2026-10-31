@@ -252,14 +252,24 @@ def get_user_templates():
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     is_comp, tenant_id, _, _ = get_active_context(user)
+    
+    type_filter = request.args.get('type')
+
     if is_comp:
-        templates = Template.query.filter(
+        query = Template.query.filter(
             (Template.tenant_id == tenant_id) | (Template.is_public == True)
-        ).order_by(Template.is_public.asc(), Template.created_at.desc()).all()
+        )
     else:
-        templates = Template.query.filter(
+        query = Template.query.filter(
             ((Template.user_id == user_id) & (Template.tenant_id == None)) | (Template.is_public == True)
-        ).order_by(Template.is_public.asc(), Template.created_at.desc()).all()
+        )
+
+    if type_filter == 'document':
+        query = query.filter(Template.layout_style == 'document')
+    elif type_filter == 'certificate':
+        query = query.filter(Template.layout_style != 'document')
+
+    templates = query.order_by(Template.is_public.asc(), Template.created_at.desc()).all()
 
     templates_data = []
     for t in templates:
@@ -279,7 +289,8 @@ def get_user_templates():
             'layout_style': t.layout_style,
             'layout_data': ld,
             'is_public': t.is_public,
-            'custom_text': t.custom_text
+            'custom_text': t.custom_text,
+            'created_at': t.created_at.isoformat() if t.created_at else None
         })
     
     return jsonify({"templates": templates_data}), 200
