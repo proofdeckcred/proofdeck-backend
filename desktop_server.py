@@ -13,21 +13,38 @@ import subprocess
 from flask import send_from_directory
 
 # 1. Configure Desktop Environment Variables BEFORE importing create_app
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+is_frozen = getattr(sys, "frozen", False)
+if is_frozen:
+    BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    # Persistent user data directory in Windows Local AppData
+    app_data_root = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ProofDeckEnterprise")
+    INSTANCE_DIR = os.path.join(app_data_root, "instance")
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+
 os.makedirs(INSTANCE_DIR, exist_ok=True)
+upload_dir = os.path.join(INSTANCE_DIR, "uploads")
+os.makedirs(upload_dir, exist_ok=True)
 
 DEFAULT_SQLITE_PATH = os.path.join(INSTANCE_DIR, "proofdeck_desktop.db").replace("\\", "/")
 
 os.environ["PROOFDECK_DESKTOP"] = "1"
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_PATH}")
+os.environ.setdefault("UPLOAD_FOLDER", upload_dir)
 os.environ.setdefault("FRONTEND_URL", "http://127.0.0.1:5000")
 
 from pkg import create_app
 from pkg.extensions import db
 from pkg.routes.desktop import ensure_desktop_default_data
 
-FRONTEND_DIST = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend", "dist"))
+# Look for compiled React frontend
+candidate_dists = [
+    os.path.join(BASE_DIR, "frontend_dist"),
+    os.path.join(BASE_DIR, "frontend", "dist"),
+    os.path.abspath(os.path.join(BASE_DIR, "..", "frontend", "dist")),
+]
+FRONTEND_DIST = next((d for d in candidate_dists if os.path.exists(d)), candidate_dists[0])
 
 
 def create_desktop_app():
