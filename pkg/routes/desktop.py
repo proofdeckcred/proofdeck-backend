@@ -289,6 +289,172 @@ def ensure_desktop_default_data():
         db.session.add_all(missing_templates)
         db.session.commit()
 
+    # Ensure official academic document presets exist in desktop vault
+    existing_docs = {t.title for t in Template.query.filter_by(layout_style='document').all()}
+    doc_presets = [
+        ("Official Statement of Result", '''<div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px; color: #111827;">OFFICE OF THE ACADEMIC REGISTRAR</h2>
+        <h3 style="margin: 4px 0 0 0; font-size: 15px; font-weight: 700; color: #374151;">EXAMINATIONS AND ACADEMIC RECORDS DIVISION</h3>
+        <p style="margin: 4px 0 0 0; font-size: 12px; color: #6B7280;">Administrative Complex, University Main Campus</p>
+      </div>
+      <hr style="border: 0; border-top: 2px solid #111827; margin: 16px 0 24px 0;" />
+      
+      <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 24px;">
+        <div><strong>Ref:</strong> <span class="pd-chip" data-var="{{ref_number}}">{{ref_number}}</span></div>
+        <div><strong>Date:</strong> <span class="pd-chip" data-var="{{issue_date}}">{{issue_date}}</span></div>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 28px;">
+        <h1 style="margin: 0; font-size: 19px; font-weight: 900; text-decoration: underline; letter-spacing: 0.5px; color: #111827;">
+          OFFICIAL STATEMENT OF RESULT
+        </h1>
+      </div>
+
+      <p style="font-size: 14px; line-height: 1.9; color: #1F2937; text-align: justify; margin-bottom: 18px;">
+        This is to certify that <strong><span class="pd-chip" data-var="{{recipient_name}}">{{recipient_name}}</span></strong>, 
+        with Registration Number <strong><span class="pd-chip" data-var="{{student_id}}">{{student_id}}</span></strong>, 
+        having completed an approved course of study and passed the prescribed examinations, has on the recommendation of the Board of Studies of the Faculty of 
+        <strong><span class="pd-chip" data-var="{{faculty}}">{{faculty}}</span></strong>, Department of 
+        <strong><span class="pd-chip" data-var="{{department}}">{{department}}</span></strong>, been admitted on 
+        <strong><span class="pd-chip" data-var="{{approval_date}}">{{approval_date}}</span></strong> to the Degree of:
+      </p>
+
+      <div style="text-align: center; margin: 24px 0; padding: 16px; background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px;">
+        <div style="font-size: 18px; font-weight: 800; color: #111827; margin-bottom: 6px;">
+          <span class="pd-chip" data-var="{{course_title}}">{{course_title}}</span>
+        </div>
+        <div style="font-size: 15px; font-weight: 700; color: #374151;">
+          With <span class="pd-chip" data-var="{{grade_or_honours}}">{{grade_or_honours}}</span> 
+          (Cumulative Grade Point Average: <strong><span class="pd-chip" data-var="{{cgpa}}">{{cgpa}}</span></strong>)
+        </div>
+      </div>
+
+      <p style="font-size: 13px; line-height: 1.8; color: #374151; text-align: justify; margin-bottom: 36px;">
+        The official certificate will be issued to him/her in due course upon surrender of this Statement of Result and clearance from all Directorates.
+      </p>
+
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 50px;">
+        <div style="text-align: left; max-width: 250px;">
+          <div style="font-family: 'Times New Roman', serif; font-size: 20px; font-style: italic; font-weight: bold; margin-bottom: 4px; color: #1E3A8A;">
+            <span class="pd-chip" data-var="{{signatory_name}}">{{signatory_name}}</span>
+          </div>
+          <div style="border-top: 1.5px solid #374151; padding-top: 6px; font-size: 13px; font-weight: 700; color: #111827;">
+            <span class="pd-chip" data-var="{{signatory_title}}">{{signatory_title}}</span>
+          </div>
+          <div style="font-size: 11px; color: #6B7280;">For: Academic Registrar & Secretary</div>
+        </div>
+
+        <div style="text-align: center; padding: 10px 18px; border: 2px dashed #9CA3AF; border-radius: 8px; font-size: 11px; color: #6B7280;">
+          <div style="font-weight: 700; color: #374151; margin-bottom: 2px;">OFFICIAL SEAL</div>
+          <div>Valid Only With Stamp</div>
+        </div>
+      </div>'''),
+        ("Letter of English Proficiency", '''<div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 800; color: #111827;">DIRECTORATE OF ACADEMIC AFFAIRS</h2>
+        <h3 style="margin: 4px 0 0 0; font-size: 14px; font-weight: 700; color: #374151;">OFFICE OF THE REGISTRAR</h3>
+        <p style="margin: 4px 0 0 0; font-size: 12px; color: #6B7280;">Verification & International Credential Services</p>
+      </div>
+      <hr style="border: 0; border-top: 2px solid #111827; margin: 16px 0 24px 0;" />
+
+      <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 24px;">
+        <div><strong>Ref:</strong> <span class="pd-chip" data-var="{{ref_number}}">{{ref_number}}</span></div>
+        <div><strong>Date:</strong> <span class="pd-chip" data-var="{{issue_date}}">{{issue_date}}</span></div>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <p style="font-size: 13px; font-weight: 700; margin: 0; color: #111827;">TO WHOM IT MAY CONCERN</p>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-size: 17px; font-weight: 800; text-decoration: underline; color: #111827;">
+          ATTESTATION OF ENGLISH AS MEDIUM OF INSTRUCTION
+        </h2>
+      </div>
+
+      <p style="font-size: 14px; line-height: 1.85; color: #1F2937; text-align: justify; margin-bottom: 18px;">
+        This is to certify that <strong><span class="pd-chip" data-var="{{recipient_name}}">{{recipient_name}}</span></strong>, 
+        bearing Registration Number <strong><span class="pd-chip" data-var="{{student_id}}">{{student_id}}</span></strong>, was a bona fide student in the 
+        Department of <strong><span class="pd-chip" data-var="{{department}}">{{department}}</span></strong>, Faculty of 
+        <strong><span class="pd-chip" data-var="{{faculty}}">{{faculty}}</span></strong>.
+      </p>
+
+      <p style="font-size: 14px; line-height: 1.85; color: #1F2937; text-align: justify; margin-bottom: 18px;">
+        We confirm that English Language is the sole medium of instruction, examination, research, and general communication for all undergraduate and postgraduate academic programs.
+      </p>
+
+      <div style="margin-top: 48px;">
+        <div style="font-family: 'Times New Roman', serif; font-size: 19px; font-style: italic; font-weight: bold; margin-bottom: 4px; color: #1E3A8A;">
+          <span class="pd-chip" data-var="{{signatory_name}}">{{signatory_name}}</span>
+        </div>
+        <div style="border-top: 1.5px solid #374151; padding-top: 4px; font-size: 13px; font-weight: 700; color: #111827; display: inline-block;">
+          <span class="pd-chip" data-var="{{signatory_title}}">{{signatory_title}}</span>
+        </div>
+        <div style="font-size: 11px; color: #6B7280; margin-top: 2px;">Director, Academic Planning & Records</div>
+      </div>'''),
+        ("Letter of Attestation", '''<div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 800; color: #111827;">OFFICE OF THE REGISTRAR</h2>
+        <p style="margin: 4px 0 0 0; font-size: 12px; color: #6B7280;">Student Academic Verification Unit</p>
+      </div>
+      <hr style="border: 0; border-top: 2px solid #111827; margin: 16px 0 24px 0;" />
+
+      <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 24px;">
+        <div><strong>Ref:</strong> <span class="pd-chip" data-var="{{ref_number}}">{{ref_number}}</span></div>
+        <div><strong>Date:</strong> <span class="pd-chip" data-var="{{issue_date}}">{{issue_date}}</span></div>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-size: 17px; font-weight: 800; text-decoration: underline; color: #111827;">
+          LETTER OF ATTESTATION
+        </h2>
+      </div>
+
+      <p style="font-size: 14px; line-height: 1.85; color: #1F2937; text-align: justify; margin-bottom: 16px;">
+        This is to attest that <strong><span class="pd-chip" data-var="{{recipient_name}}">{{recipient_name}}</span></strong> 
+        (Registration Number: <strong><span class="pd-chip" data-var="{{student_id}}">{{student_id}}</span></strong>) has satisfied all academic requirements for the award of 
+        <strong><span class="pd-chip" data-var="{{course_title}}">{{course_title}}</span></strong>.
+      </p>
+
+      <p style="font-size: 14px; line-height: 1.85; color: #1F2937; text-align: justify; margin-bottom: 16px;">
+        This letter is issued upon request pending the issuance of the substantive diploma certificate.
+      </p>
+
+      <div style="margin-top: 48px;">
+        <div style="font-family: 'Times New Roman', serif; font-size: 19px; font-style: italic; font-weight: bold; margin-bottom: 4px; color: #1E3A8A;">
+          <span class="pd-chip" data-var="{{signatory_name}}">{{signatory_name}}</span>
+        </div>
+        <div style="border-top: 1.5px solid #374151; padding-top: 4px; font-size: 13px; font-weight: 700; color: #111827; display: inline-block;">
+          <span class="pd-chip" data-var="{{signatory_title}}">{{signatory_title}}</span>
+        </div>
+      </div>''')
+    ]
+
+    missing_docs = []
+    for doc_title, doc_html in doc_presets:
+        if doc_title not in existing_docs:
+            missing_docs.append(
+                Template(
+                    title=doc_title,
+                    layout_style="document",
+                    layout_data={
+                        "document_html": doc_html,
+                        "qr_code_enabled": True,
+                        "qr_position": "bottom-right",
+                        "zoom": "100%"
+                    },
+                    primary_color="#1e3a8a",
+                    secondary_color="#0284c7",
+                    body_font_color="#1f2937",
+                    font_family="Times New Roman",
+                    is_public=False,
+                    user_id=user.id,
+                    tenant_id=tenant.id
+                )
+            )
+    if missing_docs:
+        db.session.add_all(missing_docs)
+        db.session.commit()
+
+
     return user, tenant, cfg
 
 

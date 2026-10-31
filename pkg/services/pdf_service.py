@@ -147,10 +147,12 @@ def react_style_to_css(style_dict):
 def generate_certificate_pdf(certificate, template, issuer):
     """
     Main entry point for PDF generation.
-    Decides whether to use Visual (Canvas) or HTML templates.
+    Decides whether to use Visual (Canvas), Document (A4 HTML), or Modular Certificate HTML templates.
     """
     if template.layout_style == 'visual':
         return _generate_visual_pdf(certificate, template, issuer)
+    elif template.layout_style == 'document':
+        return _generate_document_pdf(certificate, template, issuer)
     
     return _generate_html_pdf(certificate, template, issuer)
 
@@ -817,6 +819,152 @@ def _render_pdf_bytes(html_content):
     except Exception as e:
         current_app.logger.error(f"WeasyPrint PDF generation error: {e}")
         raise
+
+def _generate_document_pdf(certificate, template, issuer):
+    import json
+    import re
+    layout_data = template.layout_data or {}
+    if isinstance(layout_data, str):
+        try:
+            layout_data = json.loads(layout_data)
+        except Exception:
+            layout_data = {}
+    elif not isinstance(layout_data, dict):
+        layout_data = {}
+
+    doc_html = layout_data.get('document_html') or layout_data.get('content') or ''
+    if not doc_html:
+        doc_html = f"<h1>{template.title}</h1><p>Recipient: {certificate.recipient_name}</p>"
+
+    # Prepare merge variables
+    extra = certificate.extra_fields or {}
+    if isinstance(extra, str):
+        try:
+            extra = json.loads(extra)
+        except Exception:
+            extra = {}
+    elif not isinstance(extra, dict):
+        extra = {}
+
+    issue_date_str = ""
+    if certificate.issue_date:
+        if hasattr(certificate.issue_date, 'strftime'):
+            issue_date_str = certificate.issue_date.strftime('%B %d, %Y')
+        else:
+            issue_date_str = str(certificate.issue_date)
+
+    signatory_name = (
+        extra.get('signatory_name') or
+        certificate.issuer_name or
+        getattr(issuer, 'name', '') or
+        "Authorized Signatory"
+    )
+    signatory_title = (
+        extra.get('signatory_title') or
+        "Registrar & Secretary to Council"
+    )
+
+    qr_base64 = _generate_qr_base64(certificate)
+    verification_url = _get_certificate_verification_url(certificate)
+
+    vars_dict = {
+        "{{recipient_name}}": certificate.recipient_name or "",
+        "{{student_id}}": str(extra.get("student_id") or extra.get("matric_number") or extra.get("matric_no") or ""),
+        "{{recipient_email}}": certificate.recipient_email or "",
+        "{{course_title}}": certificate.course_title or "",
+        "{{faculty}}": str(extra.get("faculty") or extra.get("school") or "Faculty of Science & Technology"),
+        "{{department}}": str(extra.get("department") or extra.get("programme") or "Computer Science"),
+        "{{grade_or_honours}}": str(extra.get("grade_or_honours") or extra.get("degree_class") or "First Class Honours"),
+        "{{cgpa}}": str(extra.get("cgpa") or "4.75 / 5.00"),
+        "{{issue_date}}": issue_date_str,
+        "{{approval_date}}": str(extra.get("approval_date") or issue_date_str),
+        "{{ref_number}}": str(extra.get("ref_number") or f"AIT/REG/{certificate.verification_id[:8].upper()}"),
+        "{{signatory_name}}": signatory_name,
+        "{{signatory_title}}": signatory_title,
+    }
+
+    # Substitute into HTML
+    processed_html = doc_html
+    def replace_chip(match):
+        var_tag = match.group(1)
+        for k, v in vars_dict.items():
+            if k.lower() == var_tag.lower():
+                return v
+        return var_tag
+
+    processed_html = re.sub(
+        r'<span[^>]*class=["\'][^"\']*pd-chip[^"\']*["\'][^>]*data-var=["\']([^"\']+)["\'][^>]*>.*?</span>',
+        replace_chip,
+        processed_html,
+        flags=re.DOTALL | re.IGNORECASE
+    )
+
+    for k, v in vars_dict.items():
+        pattern = re.compile(re.escape(k), re.IGNORECASE)
+        processed_html = pattern.sub(str(v), processed_html)
+
+    qr_enabled = layout_data.get('qr_code_enabled', True)
+    qr_position = layout_data.get('qr_position', 'bottom-right')
+
+    qr_block = ""
+    if qr_enabled:
+        qr_float = "float: right; margin-left: 16px;" if qr_position == 'bottom-right' else "float: left; margin-right: 16px;"
+        qr_block = f"""
+        <div style="{qr_float} margin-top: 24px; text-align: center; border: 1.5px solid #E2E8F0; border-radius: 8px; padding: 8px; background: #F8FAFC;">
+            <img src="data:image/png;base64,{qr_base64}" style="width: 76px; height: 76px; display: block;" alt="Verification QR" />
+            <div style="font-size: 7pt; font-family: sans-serif; font-weight: 700; color: #475569; margin-top: 4px;">VERIFIED VAULT</div>
+            <div style="font-size: 6pt; font-family: monospace; color: #94A3B8;">{certificate.verification_id[:8].upper()}</div>
+        </div>
+        """
+
+    full_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    @page {{
+        size: A4 portrait;
+        margin: 20mm 18mm 20mm 18mm;
+        @bottom-left {{
+            content: "Official Academic Document — Tamper-Proof Verification: {verification_url}";
+            font-size: 6.5pt;
+            font-family: sans-serif;
+            color: #94a3b8;
+        }}
+        @bottom-right {{
+            content: "Page " counter(page) " of " counter(pages);
+            font-size: 7.5pt;
+            font-family: sans-serif;
+            color: #94a3b8;
+        }}
+    }}
+    body {{
+        font-family: 'Times New Roman', 'Playfair Display', Georgia, serif;
+        font-size: 11pt;
+        line-height: 1.6;
+        color: #111827;
+        margin: 0;
+        padding: 0;
+    }}
+    p {{
+        margin: 0 0 12pt 0;
+    }}
+    .pd-document-container {{
+        width: 100%;
+        position: relative;
+    }}
+</style>
+</head>
+<body>
+    <div class="pd-document-container">
+        {processed_html}
+        {qr_block}
+        <div style="clear: both;"></div>
+    </div>
+</body>
+</html>"""
+
+    return _render_pdf_bytes(full_html)
 
 def generate_certificate_png(certificate, template, issuer, dpi=300):
     """

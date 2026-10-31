@@ -10,7 +10,7 @@ import time
 import socket
 import threading
 import subprocess
-from flask import send_from_directory
+from flask import send_from_directory, make_response
 
 # 1. Configure Desktop Environment Variables BEFORE importing create_app
 is_frozen = getattr(sys, "frozen", False)
@@ -65,7 +65,11 @@ def create_desktop_app():
                 return {"msg": "Not Found"}, 404
             full_path = os.path.join(FRONTEND_DIST, path)
             if path and os.path.exists(full_path) and os.path.isfile(full_path):
-                return send_from_directory(FRONTEND_DIST, path)
+                resp = send_from_directory(FRONTEND_DIST, path)
+                resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                resp.headers["Pragma"] = "no-cache"
+                resp.headers["Expires"] = "0"
+                return resp
             index_path = os.path.join(FRONTEND_DIST, "index.html")
             if os.path.exists(index_path):
                 with open(index_path, "r", encoding="utf-8") as f:
@@ -74,8 +78,17 @@ def create_desktop_app():
                     "<title>ProofDeck — #1 Certificate Maker Software & Online Certificate Verifier</title>",
                     "<title>ProofDeck Enterprise</title>"
                 )
-                return html, 200, {"Content-Type": "text/html; charset=utf-8"}
-            return send_from_directory(FRONTEND_DIST, "index.html")
+                resp = make_response(html, 200)
+                resp.headers["Content-Type"] = "text/html; charset=utf-8"
+                resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                resp.headers["Pragma"] = "no-cache"
+                resp.headers["Expires"] = "0"
+                return resp
+            resp = send_from_directory(FRONTEND_DIST, "index.html")
+            resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            resp.headers["Pragma"] = "no-cache"
+            resp.headers["Expires"] = "0"
+            return resp
 
     return app
 
@@ -125,6 +138,9 @@ def launch_desktop_window(url):
                 f"--app={url}",
                 "--window-size=1440,900",
                 "--disable-features=TranslateUI",
+                "--disable-cache",
+                "--disk-cache-size=1",
+                "--media-cache-size=1",
                 "--no-first-run",
                 "--no-default-browser-check",
             ])
@@ -150,6 +166,9 @@ def launch_desktop_window(url):
                 f"--user-data-dir={profile_dir}",
                 "--window-size=1440,900",
                 "--disable-features=TranslateUI",
+                "--disable-cache",
+                "--disk-cache-size=1",
+                "--media-cache-size=1",
                 "--no-first-run",
                 "--no-default-browser-check",
             ])
