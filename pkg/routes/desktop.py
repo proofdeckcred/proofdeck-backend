@@ -227,21 +227,44 @@ def ensure_desktop_default_data():
     Certificate.query.filter_by(user_id=user.id, tenant_id=None).update({"tenant_id": tenant.id})
     db.session.commit()
 
-    # Ensure the full suite of built-in templates exists in the local desktop library
+    # Map any old experimental or department-themed titles to the authentic standard ProofDeck template names
+    rename_map = {
+        "University Degree & Graduation Certificate": ("Classic", "classic"),
+        "Academic Excellence & Senate Honours": ("Modern", "modern"),
+        "Official Statement of Result / Attestation": ("Minimalist Bold", "minimalist_bold"),
+        "Executive Diploma & Post-Graduate Award": ("Diploma Classic", "diploma_classic"),
+        "Gold Senate Distinction Award": ("Award Gold", "award_gold"),
+        "Modern Academic Credential": ("Modern Landscape", "modern_landscape"),
+        "Corporate Academic Fellowship": ("Corporate Blue", "corporate_blue"),
+        "Elegant Serif Degree Certification": ("Elegant Serif", "elegant_serif"),
+        "Faculty of Technology Dark Credential": ("Tech Dark", "tech_dark"),
+        "Department of Arts & Creative Design": ("Creative Art", "creative_art"),
+        "Academic Badge & Verified Accreditation": ("Badge Certificate", "badge_cert"),
+        "Star of Achievement & Senate Valedictorian": ("Achievement Star", "achievement_star"),
+        "Senate Commendation Star": ("Achievement Star", "achievement_star"),
+        "Official Student Tuition & Academic Fee Receipt": ("Receipt", "receipt"),
+    }
+    for old_title, (new_title, style) in rename_map.items():
+        for t in Template.query.filter_by(title=old_title).all():
+            t.title = new_title
+            t.layout_style = style
+    db.session.commit()
+
+    # Ensure the full suite of standard built-in templates exists in the local desktop library (exact same as web)
     all_starter_presets = [
-        {"title": "University Degree & Graduation Certificate", "style": "classic", "primary": "#1e3a8a", "secondary": "#b45309", "font": "Cinzel"},
-        {"title": "Academic Excellence & Senate Honours", "style": "modern", "primary": "#0f172a", "secondary": "#0284c7", "font": "Playfair Display"},
-        {"title": "Official Statement of Result / Attestation", "style": "minimal", "primary": "#065f46", "secondary": "#d97706", "font": "Merriweather"},
-        {"title": "Executive Diploma & Post-Graduate Award", "style": "diploma_classic", "primary": "#1e293b", "secondary": "#b45309", "font": "Cinzel"},
-        {"title": "Gold Senate Distinction Award", "style": "award_gold", "primary": "#78350f", "secondary": "#f59e0b", "font": "Cinzel"},
-        {"title": "Modern Academic Credential", "style": "modern_landscape", "primary": "#1e3a8a", "secondary": "#3b82f6", "font": "Inter"},
-        {"title": "Corporate Academic Fellowship", "style": "corporate_blue", "primary": "#0f172a", "secondary": "#2563eb", "font": "Playfair Display"},
-        {"title": "Elegant Serif Degree Certification", "style": "elegant_serif", "primary": "#1c1917", "secondary": "#78350f", "font": "Playfair Display"},
-        {"title": "Faculty of Technology Dark Credential", "style": "tech_dark", "primary": "#030712", "secondary": "#06b6d4", "font": "Inter"},
-        {"title": "Department of Arts & Creative Design", "style": "creative_art", "primary": "#4c1d95", "secondary": "#ec4899", "font": "Playfair Display"},
-        {"title": "Academic Badge & Verified Accreditation", "style": "badge_cert", "primary": "#1e3a8a", "secondary": "#d97706", "font": "Cinzel"},
-        {"title": "Star of Achievement & Senate Valedictorian", "style": "achievement_star", "primary": "#0f172a", "secondary": "#eab308", "font": "Cinzel"},
-        {"title": "Official Student Tuition & Academic Fee Receipt", "style": "receipt", "primary": "#1e293b", "secondary": "#64748b", "font": "Inter"},
+        {"title": "Classic", "style": "classic", "primary": "#1e3a8a", "secondary": "#b45309", "font": "Cinzel"},
+        {"title": "Modern", "style": "modern", "primary": "#0f172a", "secondary": "#0284c7", "font": "Playfair Display"},
+        {"title": "Minimalist Bold", "style": "minimalist_bold", "primary": "#065f46", "secondary": "#d97706", "font": "Merriweather"},
+        {"title": "Diploma Classic", "style": "diploma_classic", "primary": "#1e293b", "secondary": "#b45309", "font": "Cinzel"},
+        {"title": "Award Gold", "style": "award_gold", "primary": "#78350f", "secondary": "#f59e0b", "font": "Cinzel"},
+        {"title": "Modern Landscape", "style": "modern_landscape", "primary": "#1e3a8a", "secondary": "#3b82f6", "font": "Inter"},
+        {"title": "Corporate Blue", "style": "corporate_blue", "primary": "#0f172a", "secondary": "#2563eb", "font": "Playfair Display"},
+        {"title": "Elegant Serif", "style": "elegant_serif", "primary": "#1c1917", "secondary": "#78350f", "font": "Playfair Display"},
+        {"title": "Tech Dark", "style": "tech_dark", "primary": "#030712", "secondary": "#06b6d4", "font": "Inter"},
+        {"title": "Creative Art", "style": "creative_art", "primary": "#4c1d95", "secondary": "#ec4899", "font": "Playfair Display"},
+        {"title": "Badge Certificate", "style": "badge_cert", "primary": "#1e3a8a", "secondary": "#d97706", "font": "Cinzel"},
+        {"title": "Achievement Star", "style": "achievement_star", "primary": "#0f172a", "secondary": "#eab308", "font": "Cinzel"},
+        {"title": "Receipt", "style": "receipt", "primary": "#1e293b", "secondary": "#64748b", "font": "Inter"},
     ]
 
     existing_titles = {t.title for t in Template.query.all()}
