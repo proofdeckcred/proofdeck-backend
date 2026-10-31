@@ -11,3 +11,7 @@ instance/
 uploads/*
 !uploads/.gitkeep
 docs/
+
+build/
+dist/
+*.spec
