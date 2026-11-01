@@ -345,7 +345,7 @@ def get_template(template_id):
         try: ld = json.loads(ld)
         except Exception: pass
 
-    return jsonify({
+    data_payload = {
         'id': template.id,
         'title': template.title,
         'logo_url': template.logo_url,
@@ -356,9 +356,12 @@ def get_template(template_id):
         'font_family': template.font_family,
         'layout_style': template.layout_style,
         'layout_data': ld,
+        'canvas_data': ld,
         'is_public': template.is_public,
         'custom_text': template.custom_text
-    }), 200
+    }
+    data_payload['template'] = dict(data_payload)
+    return jsonify(data_payload), 200
 
 
 @template_bp.route('/<int:template_id>', methods=['PUT'])
