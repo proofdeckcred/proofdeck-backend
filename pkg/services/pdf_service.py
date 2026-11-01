@@ -953,6 +953,15 @@ def _generate_document_pdf(certificate, template, issuer):
         width: 100%;
         position: relative;
     }}
+    .pd-page-break {{
+        page-break-after: always !important;
+        break-after: page !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        visibility: hidden !important;
+    }}
 </style>
 </head>
 <body>
