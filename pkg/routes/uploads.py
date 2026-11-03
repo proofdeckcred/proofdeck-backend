@@ -7,7 +7,7 @@ from flask_jwt_extended import jwt_required
 # Create a new blueprint for upload-related routes
 uploads_bp = Blueprint('uploads', __name__)
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
 
 def allowed_file(filename):
     """Checks if the file's extension is allowed."""
